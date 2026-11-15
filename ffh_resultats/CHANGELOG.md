@@ -5,3 +5,8 @@
 
 ## 1.0.1
 - Icônes PNG (add-on et PWA), manifest et apple-touch-icon.
+
+## 1.0.2
+- Favoris par équipe précise (Élite Hommes, Élite Dames, U13 Filles… distincts) : correction de l'identifiant d'équipe FFH partagé entre compétitions.
+- Nouvel écran « Équipes » (recherche par club, ville, compétition, filtres).
+- Bouton retour sur tous les écrans de détail.

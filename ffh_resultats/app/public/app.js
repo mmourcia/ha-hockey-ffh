@@ -12,9 +12,11 @@ const store = {
 let D = null, IDX = {};
 let favs = store.get('favs', { clubs: [], teams: [] });
 const saveFavs = () => { store.set('favs', favs); if (typeof syncPush === 'function') syncPush(false); };
-const isFavTeam = (t) => t && (favs.teams.includes(t.id) || (t.club && favs.clubs.includes(t.club)));
+let migrated = false;
+if (favs.clubs?.length || favs.teams.some((id) => !String(id).includes(':'))) { favs.clubs = []; favs.teams = favs.teams.filter((id) => String(id).includes(':')); migrated = true; store.set('favs', favs); }
+const isFavTeam = (t) => !!t && favs.teams.includes(t.id);
 const isFavMatch = (m) => isFavTeam(m.t1) || isFavTeam(m.t2);
-const hasFavs = () => favs.clubs.length + favs.teams.length > 0;
+const hasFavs = () => favs.teams.length > 0;
 
 function index(d) {
   IDX = { comp: {}, poule: {}, club: {}, teams: {}, byDay: {} };
@@ -84,9 +86,9 @@ views.home = async () => {
   const last = mine.filter((m) => m.status === 'played').sort((a, b) => t(b) - t(a)).slice(0, 5);
   const next = mine.filter((m) => m.status === 'upcoming' && t(m) > now - 2 * 3600e3).sort((a, b) => t(a) - t(b)).slice(0, 5);
   let h = '';
-  if (!hasFavs()) h += `<div class="hero"><h1>Tous les résultats du hockey français</h1><p>Sans rien choisir : gazon et salle, toutes divisions. Choisissez vos clubs pour un fil personnalisé.</p><a class="btn primary" href="#/clubs">⭐ Choisir mes clubs</a></div>`;
+  if (!hasFavs()) h += `<div class="hero"><h1>Tous les résultats du hockey français</h1><p>Sans rien choisir : gazon et salle, toutes divisions. Choisissez vos équipes précises (ex. Élite Hommes, U13 Filles) pour un fil personnalisé.</p><a class="btn primary" href="#/equipes">⭐ Choisir mes équipes</a></div>`;
   else {
-    h += `<h2>Mes équipes<a href="#/clubs">Gérer</a></h2>`;
+    h += `<h2>Mes équipes<a href="#/equipes">Gérer</a></h2>`;
     h += next.length ? `<div class="card">${next.map((m) => matchCard(m, { showComp: true })).join('')}</div>` : '<div class="card pad muted">Aucun match à venir programmé.</div>';
     if (last.length) h += `<h2>Derniers résultats</h2><div class="card">${last.map((m) => matchCard(m, { showComp: true })).join('')}</div>`;
   }
@@ -162,45 +164,63 @@ views.comp = async (id, pouleId) => {
   try {
     const d = await api(`poule/${pouleId}`);
     if (cTab === 'scorers') {
-      box.innerHTML = d.scorers.length ? `<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th title="Verts">🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr class="${favs.clubs.includes(s.clubCode) ? 'fav' : ''}"><td class="pos">${s.rank}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '<div class="empty">Pas encore de buteurs.</div>';
+      box.innerHTML = d.scorers.length ? `<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th title="Verts">🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr class="${''}"><td class="pos">${s.rank}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '<div class="empty">Pas encore de buteurs.</div>';
       return;
     }
-    box.innerHTML = d.standings.length ? `<div class="card"><table class="t"><tr><th>#</th><th class="l">Équipe</th><th>J</th><th>G</th><th>N</th><th>P</th><th>+/-</th><th>Pts</th></tr>${d.standings.map((r) => { const t = IDX.teams[r.team.id]; const fav = isFavTeam(t); const mv = r.last && r.pos < r.last ? '<span class="up">▲</span>' : r.last && r.pos > r.last ? '<span class="dn">▼</span>' : ''; return `<tr class="${fav ? 'fav' : ''}"><td class="pos">${r.pos}</td><td class="team"><a href="#/equipe/${r.team.id}">${esc(r.team.name)}</a> ${mv}</td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p + (r.f || 0)}</td><td>${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="pts">${r.pts}</td></tr>`; }).join('')}</table></div><p class="muted small">Pts = points officiels FFH (pénalités déduites). ▲▼ = évolution depuis la journée précédente.</p>` : '<div class="empty">Classement non disponible pour cette poule.</div>';
+    box.innerHTML = d.standings.length ? `<div class="card"><table class="t"><tr><th>#</th><th class="l">Équipe</th><th>J</th><th>G</th><th>N</th><th>P</th><th>+/-</th><th>Pts</th></tr>${d.standings.map((r) => { const tid = `${id}:${r.team.id}`; const t = IDX.teams[tid]; const fav = isFavTeam(t); const mv = r.last && r.pos < r.last ? '<span class="up">▲</span>' : r.last && r.pos > r.last ? '<span class="dn">▼</span>' : ''; return `<tr class="${fav ? 'fav' : ''}"><td class="pos">${r.pos}</td><td class="team"><a href="#/equipe/${tid}">${esc(r.team.name)}</a> ${mv}</td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p + (r.f || 0)}</td><td>${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="pts">${r.pts}</td></tr>`; }).join('')}</table></div><p class="muted small">Pts = points officiels FFH (pénalités déduites). ▲▼ = évolution depuis la journée précédente.</p>` : '<div class="empty">Classement non disponible pour cette poule.</div>';
   } catch { box.innerHTML = '<div class="empty">Source FFH indisponible. Réessayez.</div>'; }
 };
 
-views.clubs = async () => {
-  app.innerHTML = `<h1>Clubs & favoris</h1><input class="search" id="cq" type="search" placeholder="Rechercher un club ou une ville…" autocomplete="off"><div id="cl"></div>`;
+const teamComps = (t) => [...t.comps].map((id) => IDX.comp[id]).filter(Boolean);
+const teamLabel = (t) => teamComps(t).map((c) => c.name).slice(0, 2).join(' · ');
+const teamMeta = (t) => { const c = teamComps(t)[0]; return c ? `${discLabel(c.disc)} · ${sexeLabel(c.sexe)}` : ''; };
+function toggleTeam(id) { const i = favs.teams.indexOf(id); i < 0 ? favs.teams.push(id) : favs.teams.splice(i, 1); saveFavs(); if (i < 0) askNotif(); }
+const teamRow = (t) => `<div class="row"><a class="grow tl" href="#/equipe/${t.id}"><b>${esc(t.name)}</b><span class="muted small">${esc(teamLabel(t))} · ${esc(teamMeta(t))}</span></a>${star(favs.teams.includes(t.id), `data-team="${t.id}"`)}</div>`;
+let tState = { disc: '', sexe: '', q: '' };
+views.equipes = async () => {
+  const chip = (k, v, l) => `<button class="chip ${tState[k] === v ? 'on' : ''}" data-f="${k}" data-v="${v}">${l}</button>`;
+  app.innerHTML = `<h1>Mes équipes</h1><p class="muted small" style="margin:-6px 0 10px">Chaque équipe est distincte : Élite Hommes, Élite Dames, U13 Filles… Cochez l’étoile des équipes que vous suivez.</p>
+  <input class="search" id="cq" type="search" placeholder="Nom du club, de l’équipe, ville ou compétition…" autocomplete="off" value="${esc(tState.q)}">
+  <div class="chips">${chip('disc', '', 'Tout')}${chip('disc', 'GAZON', 'Gazon')}${chip('disc', 'SALLE', 'Salle')}<span style="width:8px"></span>${chip('sexe', '', 'H + F')}${chip('sexe', 'M', 'Hommes')}${chip('sexe', 'F', 'Femmes')}</div><div id="cl"></div>`;
+  const all = Object.values(IDX.teams);
+  const clubCity = (t) => (t.club && IDX.club[t.club] ? IDX.club[t.club].city || '' : '');
   const draw = () => {
-    const q = norm($('#cq').value);
-    const list = D.clubs.filter((c) => !q || norm(c.name + ' ' + c.full + ' ' + (c.city || '')).includes(q)).sort((a, b) => (favs.clubs.includes(b.code) - favs.clubs.includes(a.code)) || a.name.localeCompare(b.name));
-    $('#cl').innerHTML = `<div class="card list">${list.map((c) => `<div class="row"><a style="padding:0;border:0" class="grow" href="#/club/${c.code}"><div>${esc(c.name)}</div><div class="muted small">${esc(c.city || '')}</div></a>${star(favs.clubs.includes(c.code), `data-club="${c.code}"`)}</div>`).join('') || '<div class="empty">Aucun club.</div>'}</div>`;
-    $('#cl').querySelectorAll('[data-club]').forEach((b) => (b.onclick = () => { toggleClub(b.dataset.club); draw(); }));
+    const q = norm(tState.q.trim());
+    const mine = all.filter((t) => favs.teams.includes(t.id));
+    let list = all.filter((t) => { const c = teamComps(t)[0]; return (!tState.disc || c?.disc === tState.disc) && (!tState.sexe || c?.sexe === tState.sexe) && (!q || q.split(/\s+/).every((w) => norm(`${t.name} ${teamLabel(t)} ${clubCity(t)} ${t.club && IDX.club[t.club]?.name || ''} ${teamMeta(t)}`).includes(w))); });
+    list.sort((a, b) => a.name.localeCompare(b.name) || teamLabel(a).localeCompare(teamLabel(b)));
+    const shown = list.slice(0, 60);
+    $('#cl').innerHTML = (mine.length && !q ? `<h2>Mes favoris (${mine.length})</h2><div class="card list">${mine.map(teamRow).join('')}</div>` : '') +
+      `<h2>${q || tState.disc || tState.sexe ? `${list.length} équipe${list.length > 1 ? 's' : ''}` : 'Toutes les équipes'}</h2><div class="card list">${shown.map(teamRow).join('') || '<div class="empty">Aucune équipe. Essayez « lille », « wattignies u13 »…</div>'}</div>${list.length > 60 ? '<p class="muted small center">Affinez la recherche pour voir les autres équipes.</p>' : ''}`;
+    $('#cl').querySelectorAll('[data-team]').forEach((b) => (b.onclick = (ev) => { ev.preventDefault(); toggleTeam(b.dataset.team); draw(); }));
   };
-  $('#cq').oninput = draw; draw();
+  $('#cq').oninput = (e) => { tState.q = e.target.value; draw(); };
+  app.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => { tState[b.dataset.f] = b.dataset.v; views.equipes(); }));
+  draw();
+  if (migrated) { migrated = false; toast('Les favoris se choisissent maintenant par équipe précise'); }
 };
-function toggleClub(code) { const i = favs.clubs.indexOf(code); i < 0 ? favs.clubs.push(code) : favs.clubs.splice(i, 1); saveFavs(); if (favs.clubs.includes(code)) askNotif(); }
+views.clubs = views.equipes;
 
 views.club = async (code) => {
   const c = IDX.club[code]; if (!c) return notFound();
-  const teams = Object.values(IDX.teams).filter((t) => t.club === code);
-  const ms = D.matches.filter((m) => m.t1.club === code || m.t2.club === code).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const tk = todayKey(); const upcoming = ms.filter((m) => m.status === 'upcoming'); const done = ms.filter((m) => m.status !== 'upcoming').reverse();
-  app.innerHTML = `<div class="row" style="display:flex;align-items:center;justify-content:space-between"><div><h1 style="margin-bottom:0">${esc(c.name)}</h1><div class="muted small">${esc(c.city || '')}</div></div>${star(favs.clubs.includes(code), 'id="fav"')}</div>
-  <h2>Équipes engagées</h2><div class="card list">${teams.map((t) => `<a href="#/equipe/${t.id}"><div class="grow"><div>${esc(t.name)}</div><div class="muted small">${[...t.comps].map((id) => esc(IDX.comp[id]?.name)).join(' · ')}</div></div><span class="chev">›</span></a>`).join('') || '<div class="pad muted">Aucune équipe engagée cette saison.</div>'}</div>
+  const teams = Object.values(IDX.teams).filter((t) => t.club === code).sort((a, b) => teamMeta(a).localeCompare(teamMeta(b)) || a.name.localeCompare(b.name));
+  const ms = D.matches.filter((m) => !m.bye && (m.t1.club === code || m.t2.club === code)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const upcoming = ms.filter((m) => m.status === 'upcoming' && !isLate(m)); const done = ms.filter((m) => m.status !== 'upcoming').reverse();
+  app.innerHTML = `<h1 style="margin-bottom:0">${esc(c.name)}</h1><div class="muted small">${esc(c.city || '')}</div>
+  <h2>Équipes engagées</h2><div class="card list">${teams.map(teamRow).join('') || '<div class="pad muted">Aucune équipe engagée cette saison.</div>'}</div>
   ${upcoming.length ? `<h2>À venir</h2><div class="card">${upcoming.slice(0, 15).map((m) => matchCard(m, { showComp: true })).join('')}</div>` : ''}
   ${done.length ? `<h2>Résultats</h2><div class="card">${done.slice(0, 20).map((m) => matchCard(m, { showComp: true })).join('')}</div>` : ''}`;
-  $('#fav').onclick = () => { toggleClub(code); views.club(code); };
+  app.querySelectorAll('[data-team]').forEach((b) => (b.onclick = (ev) => { ev.preventDefault(); toggleTeam(b.dataset.team); views.club(code); }));
 };
 
 views.equipe = async (id) => {
   const t = IDX.teams[id]; if (!t) return notFound();
   const ms = D.matches.filter((m) => m.t1.id === id || m.t2.id === id).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const on = favs.teams.includes(id);
-  app.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between"><div><h1 style="margin-bottom:0">${esc(t.name)}</h1><div class="muted small">${[...t.comps].map((c) => `<a href="#/comp/${c}" style="color:var(--acc)">${esc(IDX.comp[c]?.name)}</a>`).join(' · ')}</div></div>${star(on, 'id="fav"')}</div>
+  app.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><h1 style="margin-bottom:0">${esc(t.name)}</h1><div class="muted small">${esc(teamMeta(t))}</div><div class="small">${[...t.comps].map((c) => `<a href="#/comp/${c}" style="color:var(--acc)">${esc(IDX.comp[c]?.name)}</a>`).join(' · ')}</div></div>${star(on, 'id="fav"')}</div>
   ${t.club && IDX.club[t.club] ? `<p><a class="btn" href="#/club/${t.club}">Voir le club ${esc(IDX.club[t.club].name)}</a></p>` : ''}
   <h2>Calendrier & résultats</h2><div class="card">${ms.map((m) => matchCard(m, { showComp: true })).join('')}</div>`;
-  $('#fav').onclick = () => { const i = favs.teams.indexOf(id); i < 0 ? favs.teams.push(id) : favs.teams.splice(i, 1); saveFavs(); if (i < 0) askNotif(); views.equipe(id); };
+  $('#fav').onclick = () => { toggleTeam(id); views.equipe(id); };
 };
 
 views.match = async (id) => {
@@ -249,15 +269,19 @@ const notFound = () => (app.innerHTML = '<div class="empty">Page introuvable. <a
 // ---------- routeur ----------
 async function route(keep) {
   const [, name = '', a, b] = location.hash.replace(/^#/, '').split('/');
-  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'clubs', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search' }[name] || 'home';
-  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', clubs: 'clubs', club: 'clubs', equipe: 'clubs', actus: 'actus' }[v];
+  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search' }[name] || 'home';
+  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', actus: 'actus', search: 'home' }[v];
+  const root = ['home', 'matchs', 'comps', 'equipes', 'actus'].includes(v);
+  $('#back').hidden = root;
   document.querySelectorAll('.tabs a').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
   if (!D) { app.innerHTML = '<div class="loading">Chargement des résultats…</div>'; await load(true); }
   if (!D) { app.innerHTML = '<div class="empty">Impossible de charger les données.<br><button class="btn" onclick="location.reload()">Réessayer</button></div>'; return; }
   if (keep !== true) window.scrollTo(0, 0);
   try { await views[v](a, b); } catch (e) { console.error(e); app.innerHTML = '<div class="empty">Une erreur est survenue.</div>'; }
 }
-addEventListener('hashchange', () => route());
+let depth = 0, backing = false; // profondeur de navigation interne (bouton retour)
+addEventListener('hashchange', () => { if (backing) { depth = Math.max(depth - 1, 0); backing = false; } else depth++; route(); });
+$('#back').onclick = () => { if (depth > 0) { backing = true; history.back(); } else location.hash = '#/'; };
 
 // ---------- Web Push (app fermée) ----------
 const b64uToU8 = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
@@ -295,5 +319,5 @@ function diffAlerts() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   bellState(); syncPush(false);
   await route(); diffAlerts();
-  setInterval(async () => { if (document.hidden) return; if (await load()) { diffAlerts(); if (!/^#\/(search|clubs)/.test(location.hash)) route(true); } }, 60e3);
+  setInterval(async () => { if (document.hidden) return; if (await load()) { diffAlerts(); if (!/^#\/(search|equipes|clubs)/.test(location.hash)) route(true); } }, 60e3);
 })();

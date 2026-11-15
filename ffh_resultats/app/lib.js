@@ -18,7 +18,8 @@ export function normMatch(r, comp) {
   else if (r.RencArrete === 'O') status = 'stopped';
   else if (forfait) status = 'forfeit';
   else if (s1 != null && s2 != null) status = 'played';
-  const team = (e) => e && { id: e.EquipeId, name: e.EquipeNom || 'Exempt', club: (e.Structure?.StructureCode && e.Structure.StructureCode !== '0') ? e.Structure.StructureCode : null };
+  // EquipeId FFH est partagé entre compétitions (ex. LILLE MHC dames/hommes) : identité = compétition + équipe
+  const team = (e) => e && { id: `${comp.id}:${e.EquipeId}`, name: e.EquipeNom || 'Exempt', club: (e.Structure?.StructureCode && e.Structure.StructureCode !== '0') ? e.Structure.StructureCode : null };
   const bye = !r.Equipe1?.EquipeNom || !r.Equipe2?.EquipeNom;
   const L = r.LieuDeRencontre || {};
   return {
