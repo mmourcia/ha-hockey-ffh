@@ -62,3 +62,5 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .fteam .match{padding:8px 12px}
 @media(max-width:899px){.home-compact .news img{height:60px}}
 .stats{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;margin-top:2px}
+
+.t.st{font-size:13px}.t.st th.sortable{cursor:pointer;user-select:none;white-space:nowrap}.t.st th.on{color:var(--acc,#1a7f4b)}.t.st td.hl{background:var(--acc2);font-weight:600}.t.st td,.t.st th{padding-left:3px;padding-right:3px}

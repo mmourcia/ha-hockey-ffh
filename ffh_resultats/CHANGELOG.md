@@ -30,3 +30,6 @@
 
 ## 1.3.1
 - Correctif : les cartons du classement des buteurs étaient faux (l’API FFH les cumule) ; ils sont désormais recalculés depuis les feuilles de match.
+
+## 1.4.0
+- Classements d’équipes triables par colonne (meilleure attaque BP, meilleure défense BC, différence, victoires…).

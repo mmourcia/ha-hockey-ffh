@@ -150,6 +150,7 @@ views.comps = async () => {
 };
 
 let cTab = 'standings';
+let stSort = { k: 'pos', dir: 1 };
 views.comp = async (id, pouleId) => {
   const c = IDX.comp[id]; if (!c) return notFound();
   pouleId = pouleId || c.poules[0].id;
@@ -173,7 +174,15 @@ views.comp = async (id, pouleId) => {
       box.innerHTML = d.scorers.length ? `<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th title="Verts">🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr class="${''}"><td class="pos">${s.rank}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '<div class="empty">Pas encore de buteurs.</div>';
       return;
     }
-    box.innerHTML = d.standings.length ? `<div class="card"><table class="t"><tr><th>#</th><th class="l">Équipe</th><th>J</th><th>G</th><th>N</th><th>P</th><th>+/-</th><th>Pts</th></tr>${d.standings.map((r) => { const tid = `${id}:${r.team.id}`; const t = IDX.teams[tid]; const fav = isFavTeam(t); const mv = r.last && r.pos < r.last ? '<span class="up">▲</span>' : r.last && r.pos > r.last ? '<span class="dn">▼</span>' : ''; return `<tr class="${fav ? 'fav' : ''}"><td class="pos">${r.pos}</td><td class="team"><a href="#/equipe/${tid}">${esc(r.team.name)}</a> ${mv}</td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p + (r.f || 0)}</td><td>${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="pts">${r.pts}</td></tr>`; }).join('')}</table></div><p class="muted small">Pts = points officiels FFH (pénalités déduites). ▲▼ = évolution depuis la journée précédente.</p>` : '<div class="empty">Classement non disponible pour cette poule.</div>';
+    const COLS = [['pos', '#', 1, 'Classement officiel'], ['team', 'Équipe', 1, 'Ordre alphabétique'], ['j', 'J', -1, 'Matchs joués'], ['g', 'G', -1, 'Victoires'], ['n', 'N', -1, 'Nuls'], ['pp', 'P', 1, 'Moins de défaites'], ['bp', 'BP', -1, 'Meilleure attaque (buts pour)'], ['bc', 'BC', 1, 'Meilleure défense (buts contre)'], ['diff', '+/-', -1, 'Meilleure différence de buts'], ['pts', 'Pts', -1, 'Points']];
+    const val = (r, k) => (k === 'team' ? r.team.name || '' : k === 'pp' ? (r.p || 0) + (r.f || 0) : r[k] ?? 0);
+    const draw = () => {
+      const { k, dir } = stSort, rows = [...d.standings].sort((a, b) => { const x = val(a, k), y = val(b, k); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir || a.pos - b.pos; });
+      const th = COLS.map(([key, lab, def, tip]) => `<th data-s="${key}" title="${tip}" class="sortable${key === 'team' ? ' l' : ''}${k === key ? ' on' : ''}">${lab}${k === key ? (dir === 1 ? ' ▲' : ' ▼') : ''}</th>`).join('');
+      box.innerHTML = `<div class="card"><table class="t st"><tr>${th}</tr>${rows.map((r) => { const tid = `${id}:${r.team.id}`; const t = IDX.teams[tid]; const fav = isFavTeam(t); const mv = r.last && r.pos < r.last ? '<span class="up">▲</span>' : r.last && r.pos > r.last ? '<span class="dn">▼</span>' : ''; const hl = (key) => (k === key ? ' class="hl"' : ''); return `<tr class="${fav ? 'fav' : ''}"><td class="pos">${r.pos}</td><td class="team"><a href="#/equipe/${tid}">${esc(r.team.name)}</a> ${mv}</td><td${hl('j')}>${r.j}</td><td${hl('g')}>${r.g}</td><td${hl('n')}>${r.n}</td><td${hl('pp')}>${r.p + (r.f || 0)}</td><td${hl('bp')}>${r.bp ?? ''}</td><td${hl('bc')}>${r.bc ?? ''}</td><td${hl('diff')}>${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="pts">${r.pts}</td></tr>`; }).join('')}</table></div><p class="muted small">Touchez un en-tête pour trier (BP = attaque, BC = défense). Pts = points officiels FFH (pénalités déduites). ▲▼ = évolution depuis la journée précédente.</p>`;
+      box.querySelectorAll('th[data-s]').forEach((h) => (h.onclick = () => { const def = COLS.find((c) => c[0] === h.dataset.s)[2]; stSort = h.dataset.s === stSort.k ? { k: stSort.k, dir: -stSort.dir } : { k: h.dataset.s, dir: def }; draw(); }));
+    };
+    if (d.standings.length) draw(); else box.innerHTML = '<div class="empty">Classement non disponible pour cette poule.</div>';
   } catch { box.innerHTML = '<div class="empty">Source FFH indisponible. Réessayez.</div>'; }
 };
 
