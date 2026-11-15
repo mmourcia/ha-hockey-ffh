@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hockey FFH – Tableau de bord</title>
+<style>
+:root{--bg:#f3f6f9;--card:#fff;--ink:#14212e;--mute:#66788a;--line:#e1e8ef;--brand:#0b2a4a;--acc:#1f9d55;--accbg:#e8f6ee;--warn:#c2410c;--warnbg:#fdecd8;--err:#d92d20;--errbg:#fde8e6}
+@media(prefers-color-scheme:dark){:root{--bg:#0a1520;--card:#122232;--ink:#e8eef4;--mute:#92a4b6;--line:#1f3347;--acc:#35c47a;--accbg:#12352a;--warn:#fb923c;--warnbg:#3a2412;--err:#f87171;--errbg:#3b1717}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:linear-gradient(135deg,#0b2a4a,#14538f);color:#fff;border-radius:18px;padding:20px 22px}
+header h1{margin:0;font-size:22px}header .sub{opacity:.8;font-size:13px}.grow{flex:1;min-width:200px}
+.badge{display:inline-flex;gap:8px;align-items:center;padding:6px 14px;border-radius:999px;font-weight:600;font-size:14px;background:var(--accbg);color:var(--acc)}
+.badge i{width:9px;height:9px;border-radius:50%;background:currentColor;display:inline-block}
+.badge.late{background:var(--warnbg);color:var(--warn)}.badge.error{background:var(--errbg);color:var(--err)}.badge.init{background:var(--line);color:var(--mute)}
+.badge.spin i{animation:p 1s infinite}@keyframes p{50%{opacity:.2}}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 16px;border-radius:12px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;gap:6px;align-items:center}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}.btn[disabled]{opacity:.5;cursor:default}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.tile b{display:block;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}.tile span{color:var(--mute);font-size:13px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--mute);margin:0 0 10px}
+.row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid var(--line);font-size:14px}.row:first-of-type{border-top:0}
+.row .k{color:var(--mute)}.row .v{text-align:right;min-width:0;overflow-wrap:anywhere}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--acc)}.dot.bad{background:var(--err)}
+a.link{color:var(--acc);text-decoration:none;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 4px;text-align:left;border-top:1px solid var(--line)}th{color:var(--mute);font-weight:600;border-top:0}
+.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin:6px 0 2px}.bar>div{height:100%;background:var(--acc)}
+.muted{color:var(--mute)}.small{font-size:12px}.empty{color:var(--mute);font-size:14px;padding:6px 0}
+.full{grid-column:1/-1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="font-size:38px">🏑</div>
+    <div class="grow"><h1>Hockey FFH – Résultats</h1><div class="sub" id="sub">Chargement…</div></div>
+    <span class="badge init" id="badge"><i></i><span>…</span></span>
+  </header>
+  <div class="actions" id="actions"></div>
+  <div class="grid" id="tiles"></div>
+  <div class="cols" id="cols"></div>
+</div>
+<script>
+const base = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
+const $ = (s) => document.querySelector(s);
+const esc = (s = '') => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ago = (iso) => { if (!iso) return '—'; const s = Math.round((Date.now() - Date.parse(iso)) / 1000); if (s < 0) return 'dans ' + dur(-s); return s < 5 ? 'à l’instant' : 'il y a ' + dur(s); };
+const dur = (s) => s < 60 ? s + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : s < 86400 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' j';
+const dt = (iso) => iso ? new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+const row = (k, v) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+const ms = (p) => `<span class="dot ${p.ok ? '' : 'bad'}"></span>${p.ok ? 'OK' : 'Injoignable'} · ${p.ms} ms`;
+const LABEL = { ok: 'Synchronisation OK', late: 'Synchronisation en retard', error: 'Dernière synchro en erreur', init: 'Démarrage…' };
+async function post(p) { try { await fetch(base + p, { method: 'POST' }); } catch {} setTimeout(load, 1500); }
+async function load() {
+  let s; try { s = await (await fetch(base + 'status', { cache: 'no-store' })).json(); } catch { $('#sub').textContent = 'Add-on injoignable'; return; }
+  $('#sub').textContent = `Version ${s.version} · saison ${s.seasonLabel || '—'} · actif depuis ${dur(s.uptimeSec)}`;
+  const b = $('#badge'); b.className = 'badge ' + s.state + (s.refreshing ? ' spin' : ''); b.lastElementChild.textContent = s.refreshing ? 'Synchronisation en cours…' : LABEL[s.state];
+  $('#actions').innerHTML = (s.publicUrl ? `<a class="btn primary" href="${esc(s.publicUrl)}" target="_blank" rel="noopener">🌐 Ouvrir le site public</a><button class="btn" id="cp">📋 Copier le lien</button>` : '<span class="btn" style="cursor:default">🔒 Pas de lien public — renseignez la clé Tailscale</span>') +
+    `<button class="btn" id="rf" ${s.refreshing ? 'disabled' : ''}>🔄 Synchroniser maintenant</button><button class="btn" id="cr" ${s.sheets.crawling ? 'disabled' : ''}>📄 Relire les feuilles de match</button>`;
+  if (s.publicUrl) $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(s.publicUrl); $('#cp').textContent = '✅ Copié'; } catch { prompt('Lien', s.publicUrl); } };
+  $('#rf').onclick = () => post('refresh'); $('#cr').onclick = () => post('crawl');
+  const c = s.counts || {}, pct = s.sheets.total ? Math.round(100 * s.sheets.sheets / s.sheets.total) : 0;
+  $('#tiles').innerHTML = [[c.matches ?? '—', 'matchs de la saison'], [c.played ?? '—', 'matchs joués'], [c.comps ?? '—', 'compétitions'], [c.teams ?? '—', 'équipes'], [c.clubs ?? '—', 'clubs'], [s.sheets.players, 'joueurs indexés']].map(([n, l]) => `<div class="tile"><b>${n}</b><span>${l}</span></div>`).join('');
+  const hist = s.refreshes.length ? `<table><tr><th>Quand</th><th>Durée</th><th>Résultat</th><th>Scores</th></tr>${s.refreshes.map((r) => `<tr><td>${dt(r.at)}</td><td>${(r.ms / 1000).toFixed(1)} s</td><td>${r.ok ? '<span class="dot"></span>OK' : '<span class="dot bad"></span>' + esc(r.error)}</td><td>${r.ok ? (r.changed ? '+' + r.changed : '—') : ''}</td></tr>`).join('')}</table>` : '<div class="empty">Aucune synchronisation depuis le démarrage.</div>';
+  $('#cols').innerHTML = `
+  <div class="card"><h2>Synchronisation avec la FFH</h2>
+    ${row('Dernière synchro', `${ago(s.lastSync)} <span class="muted small">(${dt(s.lastSync)})</span>`)}
+    ${row('Prochaine', `${ago(s.nextSync)}`)}
+    ${row('Fréquence', `toutes les ${Math.round(s.refreshMs / 60000)} min`)}
+    ${row('API résultats', ms(s.probe.api))}
+    ${row('Site ffhockey.org (actus)', ms(s.probe.site))}
+    ${row('Actualités', s.news ? `${s.news.ok ? '<span class="dot"></span>' + s.news.count + ' articles' : '<span class="dot bad"></span>échec'} · ${ago(s.news.at)}` : '<span class="muted">pas encore chargées</span>')}
+  </div>
+  <div class="card"><h2>Feuilles de match & joueurs</h2>
+    ${row('Feuilles lues', `${s.sheets.sheets} / ${s.sheets.total}`)}
+    <div class="bar"><div style="width:${pct}%"></div></div><div class="small muted">${pct}% ${s.sheets.crawling ? '· collecte en cours…' : ''} (catégories de jeunes exclues)</div>
+    ${row('Joueurs indexés', s.sheets.players)}
+  </div>
+  <div class="card"><h2>Notifications push</h2>
+    ${row('Appareils abonnés', s.push.subscribers)}
+    ${row('…avec des équipes favorites', s.push.withFavs)}
+    ${row('Notifications envoyées', s.push.sent)}
+    ${row('Échecs', s.push.failed)}
+    ${row('Dernier envoi', s.push.lastAt ? `${ago(s.push.lastAt)} (HTTP ${s.push.lastStatus})` : '—')}
+  </div>
+  <div class="card"><h2>Liens utiles</h2>
+    ${row('Site public', s.publicUrl ? `<a class="link" href="${esc(s.publicUrl)}" target="_blank" rel="noopener">${esc(s.publicUrl.replace(/^https:\/\//, ''))}</a>` : '—')}
+    ${row('Résultats FFH (source)', '<a class="link" href="https://championnats.ffhockey.org/" target="_blank" rel="noopener">championnats.ffhockey.org</a>')}
+    ${row('Site de la fédération', '<a class="link" href="https://www.ffhockey.org/" target="_blank" rel="noopener">ffhockey.org</a>')}
+    ${row('Code source', '<a class="link" href="https://github.com/mmourcia/ha-hockey-ffh" target="_blank" rel="noopener">github.com/mmourcia/ha-hockey-ffh</a>')}
+  </div>
+  <div class="card full"><h2>Derniers scores détectés</h2>${s.changes.length ? `<table>${s.changes.map((x) => `<tr><td style="width:150px">${dt(x.at)}</td><td><b>${esc(x.match)}</b></td><td class="muted">${esc(x.comp || '')}</td></tr>`).join('')}</table>` : '<div class="empty">Aucun nouveau score détecté depuis le démarrage (les nouveaux résultats apparaîtront ici et déclenchent les notifications).</div>'}</div>
+  <div class="card full"><h2>Historique des synchronisations</h2>${hist}</div>
+  ${s.errors.length ? `<div class="card full"><h2>Erreurs récentes</h2><table>${s.errors.map((x) => `<tr><td style="width:150px">${dt(x.at)}</td><td>${esc(x.msg)}</td></tr>`).join('')}</table></div>` : ''}`;
+}
+load(); setInterval(load, 10000);
+</script>
+</body>
+</html>

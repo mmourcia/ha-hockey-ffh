@@ -19,6 +19,7 @@ export function createPush(dataDir, subject = process.env.VAPID_SUBJECT || 'mail
   }
   const subs = fs.existsSync(subFile) ? JSON.parse(fs.readFileSync(subFile)) : {}; // endpoint -> {sub, favs, pending[]}
   const save = () => fs.writeFileSync(subFile, JSON.stringify(subs));
+  const stat = { sent: 0, failed: 0, lastAt: null, lastStatus: null };
 
   function jwt(aud) {
     const h = b64u(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
@@ -29,11 +30,13 @@ export function createPush(dataDir, subject = process.env.VAPID_SUBJECT || 'mail
   async function ping(endpoint) {
     const r = await fetch(endpoint, { method: 'POST', headers: { TTL: '86400', Urgency: 'high', 'Content-Length': '0', Authorization: `vapid t=${jwt(new URL(endpoint).origin)}, k=${keys.pub}` }, signal: AbortSignal.timeout(15e3) });
     if (r.status === 404 || r.status === 410) { delete subs[endpoint]; save(); }
+    stat.lastAt = new Date().toISOString(); stat.lastStatus = r.status; r.status < 300 ? stat.sent++ : stat.failed++;
     return r.status;
   }
   const valid = (s) => s && typeof s.endpoint === 'string' && /^https:\/\//.test(s.endpoint);
   return {
     publicKey: keys.pub,
+    stats: () => ({ subscribers: Object.keys(subs).length, withFavs: Object.values(subs).filter((s) => s.favs.teams.length).length, ...stat }),
     subscribe(sub, favs) {
       if (!valid(sub)) throw new Error('subscription invalide');
       const clean = { clubs: (favs?.clubs || []).slice(0, 50).map(String), teams: (favs?.teams || []).slice(0, 100).map(String) };
@@ -49,7 +52,7 @@ export function createPush(dataDir, subject = process.env.VAPID_SUBJECT || 'mail
         if (!mine.length) continue;
         mine.slice(0, 5).forEach((m) => s.pending.push({ id: m.id, title: 'Résultat FFH', body: `${m.t1.name} ${m.s1} - ${m.s2} ${m.t2.name}`, url: `/#/match/${m.id}` }));
         s.pending = s.pending.slice(-20); save();
-        await ping(s.sub.endpoint).then(() => sent++).catch((e) => console.warn('push', e.message));
+        await ping(s.sub.endpoint).then(() => sent++).catch((e) => { stat.failed++; console.warn('push', e.message); });
       }
       return sent;
     },

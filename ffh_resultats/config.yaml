@@ -1,5 +1,5 @@
 name: "Hockey FFH Résultats"
-version: "1.1.0"
+version: "1.2.0"
 slug: ffh_resultats
 url: "https://github.com/mmourcia/ha-hockey-ffh"
 description: "PWA de résultats de la Fédération Française de Hockey (API FFH, Web Push)"
@@ -7,6 +7,11 @@ arch: [amd64, aarch64, armv7]
 startup: application
 boot: auto
 init: false
+ingress: true
+ingress_port: 8100
+panel_icon: mdi:hockey-sticks
+panel_title: Hockey FFH
+panel_admin: false
 ports:
   8080/tcp: 8099
 ports_description:

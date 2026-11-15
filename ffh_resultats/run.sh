@@ -2,6 +2,8 @@
 # Lit les options de l'add-on (/data/options.json) ; /data est persistant (clés VAPID, abonnements, feuilles, état Tailscale)
 export DATA_DIR=/data
 export PORT=8080
+export ADMIN_PORT=8100
+rm -f /data/public_url
 export VAPID_SUBJECT="$(jq -r '.vapid_subject' /data/options.json)"
 export REFRESH_MS="$(( $(jq -r '.refresh_minutes' /data/options.json) * 60000 ))"
 
@@ -13,7 +15,7 @@ if [ -n "$AUTHKEY" ]; then
   tailscaled --tun=userspace-networking --state=/data/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock > /tmp/tailscaled.log 2>&1 &
   for i in 1 2 3 4 5 6 7 8 9 10; do [ -S /var/run/tailscale/tailscaled.sock ] && break; sleep 1; done
   if tailscale up --authkey="$AUTHKEY" --hostname="$TS_HOST" --accept-dns=false --accept-routes=false; then
-    tailscale funnel --bg 8080 && echo "Funnel actif : $(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')" || echo "Funnel : échec (HTTPS et Funnel autorisés dans la console Tailscale ?)"
+    tailscale funnel --bg 8080 && { TS_NAME="$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')"; echo "https://$TS_NAME" > /data/public_url; echo "Funnel actif : $TS_NAME"; } || echo "Funnel : échec (HTTPS et Funnel autorisés dans la console Tailscale ?)"
   else
     echo "Tailscale : connexion impossible (clé invalide ou expirée ?)"
   fi
