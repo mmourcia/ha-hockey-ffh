@@ -50,3 +50,7 @@
 ## 1.7.0
 - Panneau HA : nouvel onglet « Fréquentation » (visiteurs en ligne, visiteurs par jour/semaine, durée des visites, pages et rubriques les plus vues, équipes les plus mises en favori, appareils, liste des visiteurs anonymes avec leurs favoris).
 - Mesure anonyme : identifiant aléatoire par navigateur, sans adresse IP ni nom ; respecte « Ne pas suivre » ; conservation 180 jours ; mention sur l’accueil.
+
+## 1.7.1
+- Feuille de match : les arbitres sont des lignes cliquables (« voir ses statistiques ») menant à leur fiche.
+- Confidentialité : les numéros de licence ne sont plus renvoyés par l’API publique (joueurs, blessures).

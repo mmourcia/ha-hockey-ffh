@@ -207,6 +207,9 @@ const api = async (req, res, url) => {
         const ref = /^arbitre/i.test(o.role);
         return { role: o.role, name: ref ? cleanRefName(o.name) : o.name, id: ref ? refId({ l: o.licence, n: o.name }) : null };
       });
+      // confidentialité : aucun numéro de licence dans l'API publique
+      sh.players = sh.players.map((side) => side.map(({ licence, ...x }) => x));
+      sh.injuries = sh.injuries.map((t) => (t || '').replace(/\b\d{6,9}\s*-\s*/g, ''));
       return send(req, res, 200, sh, { 'cache-control': 'public, max-age=120' });
     }
     if (p[0] === 'referees') {

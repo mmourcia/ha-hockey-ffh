@@ -382,7 +382,7 @@ views.match = async (id) => {
     const cd = s.cards;
     $('#sheet').innerHTML = `<h2>Feuille de match</h2><div class="card"><div class="cols">${col(0)}${col(1)}</div></div>
     ${cd.green + cd.yellow + cd.red ? `<p class="small muted center">Cartons : ${cd.green ? `<span class="cd green"></span> ×${cd.green} ` : ''}${cd.yellow ? `<span class="cd yellow"></span> ×${cd.yellow} ` : ''}${cd.red ? `<span class="cd red"></span> ×${cd.red}` : ''}</p>` : ''}
-    ${s.officials.length ? `<h2>Officiels</h2><div class="card list">${s.officials.map((o) => `<div class="row"><div class="grow"><div>${o.id ? `<a href="#/arbitre/${o.id}">${esc(o.name)}</a>` : esc(o.name)}</div><div class="muted small">${esc(o.role)}</div></div></div>`).join('')}</div>` : ''}`;
+    ${s.officials.length ? `<h2>Officiels</h2><div class="card list">${s.officials.map((o) => o.id ? `<a href="#/arbitre/${o.id}"><div class="grow"><div><b>${esc(o.name)}</b></div><div class="muted small">${esc(o.role)} · voir ses statistiques</div></div><span class="chev">›</span></a>` : `<div class="row"><div class="grow"><div>${esc(o.name)}</div><div class="muted small">${esc(o.role)}</div></div></div>`).join('')}</div>` : ''}`;
   } catch { $('#sheet').innerHTML = '<div class="empty">Feuille indisponible pour le moment.</div>'; }
 };
 
