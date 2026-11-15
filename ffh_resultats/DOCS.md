@@ -7,6 +7,7 @@ PWA de résultats de la Fédération Française de Hockey (gazon, salle, dévelo
 |---|---|
 | `vapid_subject` | Contact `mailto:` envoyé aux services push (obligatoire en pratique) |
 | `refresh_minutes` | Fréquence de relecture des API FFH (défaut 5) |
+| `include_youth_players` | `false` par défaut. Si `true`, les joueurs des catégories de jeunes (mineurs) sont indexés et consultables dans la section Joueurs. À n'activer qu'avec l'accord de la fédération si le site est public |
 | `tailscale_authkey` | Clé `tskey-auth-…` réutilisable : publie le site en HTTPS via Tailscale Funnel (laisser vide pour ne pas publier) |
 | `tailscale_hostname` | Nom de l'appareil : adresse `https://<nom>.<réseau>.ts.net` |
 

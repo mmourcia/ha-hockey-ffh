@@ -15,11 +15,11 @@ export function compactSheet(s) {
   };
 }
 
-export function aggregate(matches, sheets, compsById) {
+export function aggregate(matches, sheets, compsById, { includeYouth = false } = {}) {
   const players = new Map(); // id -> {id,name,rows:Map(teamId->row)}
   for (const m of matches) {
     const sh = sheets[m.id]; if (!sh || m.bye) continue;
-    const comp = compsById[m.comp]; if (!comp || isYouthComp(comp.name)) continue;
+    const comp = compsById[m.comp]; if (!comp || (!includeYouth && isYouthComp(comp.name))) continue;
     [m.t1, m.t2].forEach((team, side) => {
       const goalsByShirt = {}; (sh.sc[side] || []).forEach((g) => (goalsByShirt[g.no] = (goalsByShirt[g.no] || 0) + g.n));
       for (const x of sh.p[side] || []) {

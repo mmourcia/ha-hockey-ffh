@@ -26,3 +26,9 @@ test('recherche insensible aux accents et filtre équipe', () => {
   assert.equal(search(map, { q: 'eloise berard' }).total, 1);
   assert.equal(search(map, { q: 'berard', team: '1:2' }).total, 0);
 });
+
+test('option includeYouth', () => {
+  const m2 = { id: '12', comp: '2', t1: { id: '2:1', name: 'A' }, t2: { id: '2:2', name: 'B' } };
+  assert.equal(aggregate([m2], { 12: sheet }, comps).size, 0);
+  assert.ok(aggregate([m2], { 12: sheet }, comps, { includeYouth: true }).size > 0);
+});

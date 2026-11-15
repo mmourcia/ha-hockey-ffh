@@ -16,6 +16,7 @@ fs.mkdirSync(DATA, { recursive: true });
 const PORT = +process.env.PORT || 8080;
 const UP = 'https://championnats.ffhockey.org/rest2/';
 const UA = 'FFH-Resultats-PWA/1.0';
+const INCLUDE_YOUTH = process.env.INCLUDE_YOUTH === 'true';
 const push = createPush(DATA);
 const health = { start: Date.now(), refreshes: [], errors: [], changes: [], news: null, refreshing: false, lastOk: null };
 const note = (arr, v, n = 15) => { arr.unshift(v); arr.length = Math.min(arr.length, n); };
@@ -115,7 +116,7 @@ const compsMap = (idx) => Object.fromEntries(idx.comps.map((c) => [c.id, c]));
 async function crawlSheets(season) {
   const idx = store[season]; if (!idx || crawling) return;
   const cm = compsMap(idx);
-  const todo = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && !sheets[m.id] && cm[m.comp] && !isYouthComp(cm[m.comp].name));
+  const todo = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && !sheets[m.id] && cm[m.comp] && (INCLUDE_YOUTH || !isYouthComp(cm[m.comp].name)));
   if (!todo.length) return;
   crawling = true; let n = 0;
   try {
@@ -129,11 +130,11 @@ async function crawlSheets(season) {
   } catch (e) { console.warn('crawl', e.message); } finally { crawling = false; }
 }
 function players(season) {
-  const idx = store[season]; const key = `${idx.version}:${Object.keys(sheets).length}`;
-  if (playersIdx.key !== key) playersIdx = { key, map: aggregate(idx.matches, sheets, compsMap(idx)) };
+  const idx = store[season]; const key = `${idx.version}:${Object.keys(sheets).length}:${INCLUDE_YOUTH}`;
+  if (playersIdx.key !== key) playersIdx = { key, map: aggregate(idx.matches, sheets, compsMap(idx), { includeYouth: INCLUDE_YOUTH }) };
   return playersIdx.map;
 }
-const coverage = (season) => { const idx = store[season]; const cm = compsMap(idx); const elig = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && cm[m.comp] && !isYouthComp(cm[m.comp].name)); return { sheets: elig.filter((m) => sheets[m.id]).length, total: elig.length }; };
+const coverage = (season) => { const idx = store[season]; const cm = compsMap(idx); const elig = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && cm[m.comp] && (INCLUDE_YOUTH || !isYouthComp(cm[m.comp].name))); return { sheets: elig.filter((m) => sheets[m.id]).length, total: elig.length, includeYouth: INCLUDE_YOUTH }; };
 
 // ---------- news ----------
 const NEWS_PAGES = ['/', '/actualites/actualite-federale.html', '/actualites/actualites-championnats.html', '/actualites/coup-de-crosse.html'];

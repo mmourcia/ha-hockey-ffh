@@ -247,7 +247,7 @@ views.joueurs = async () => {
       const d = await api(`players?q=${encodeURIComponent(q)}${useMine ? '&teams=' + encodeURIComponent(mineTeams.join(',')) : ''}`);
       if (my !== seq) return;
       $('#jl').innerHTML = d.rows.length ? `<div class="card list">${d.rows.map((r) => `<a href="#/joueur/${r.id}"><div class="grow"><div><b>${esc(r.name)}</b></div><div class="muted small">${esc(r.team.name)} · ${esc(r.comp.name)}</div><div class="stats">${statCells(r)}</div></div><span class="chev">›</span></a>`).join('')}</div>${d.total > d.rows.length ? `<p class="muted small center">${d.total} résultats : affinez la recherche.</p>` : ''}` : '<div class="empty">Aucun joueur trouvé.</div>';
-      $('#jnote').textContent = `Données issues de ${d.coverage.sheets} feuilles de match sur ${d.coverage.total} disponibles. Catégories de jeunes exclues.`;
+      $('#jnote').textContent = `Données issues de ${d.coverage.sheets} feuilles de match sur ${d.coverage.total} disponibles.${d.coverage.includeYouth ? '' : ' Catégories de jeunes exclues.'}`;
     } catch { $('#jl').innerHTML = '<div class="empty">Source indisponible.</div>'; }
   };
   $('#jq').oninput = (e) => { jState.q = e.target.value; clearTimeout(timer); timer = setTimeout(run, 250); };

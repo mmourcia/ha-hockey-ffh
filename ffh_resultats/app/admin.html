@@ -78,7 +78,7 @@ async function load() {
   </div>
   <div class="card"><h2>Feuilles de match & joueurs</h2>
     ${row('Feuilles lues', `${s.sheets.sheets} / ${s.sheets.total}`)}
-    <div class="bar"><div style="width:${pct}%"></div></div><div class="small muted">${pct}% ${s.sheets.crawling ? '· collecte en cours…' : ''} (catégories de jeunes exclues)</div>
+    <div class="bar"><div style="width:${pct}%"></div></div><div class="small muted">${pct}% ${s.sheets.crawling ? '· collecte en cours…' : ''} ${s.sheets.includeYouth ? '(jeunes inclus)' : '(catégories de jeunes exclues)'}</div>
     ${row('Joueurs indexés', s.sheets.players)}
   </div>
   <div class="card"><h2>Notifications push</h2>
