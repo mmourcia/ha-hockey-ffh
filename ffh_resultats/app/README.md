@@ -30,7 +30,6 @@ Accueil personnalisé · Matchs par jour avec filtres (gazon/salle, H/F, favoris
 ## Limites connues / suite
 - Web Push (app fermée) : implémenté (`push.js`, VAPID). Exige HTTPS ; sur iOS, PWA installée requise. Définir `VAPID_SUBJECT`.
 - Pas d'événements de match en direct (la FFH ne publie que le score final) ; un match dont l'heure est passée sans score affiche « ? ».
-- Icône SVG uniquement : ajouter des PNG 192/512 pour iOS avant mise en production.
 - Les données sont celles de la FFH ; vérifier avec la fédération les conditions d'usage/CGU de l'API avant diffusion publique.
 
 ## Hébergement sur Home Assistant OS (add-on local)
