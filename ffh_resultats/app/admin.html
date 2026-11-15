@@ -32,6 +32,9 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 4px;t
 .bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin:6px 0 2px}.bar>div{height:100%;background:var(--acc)}
 .muted{color:var(--mute)}.small{font-size:12px}.empty{color:var(--mute);font-size:14px;padding:6px 0}
 .full{grid-column:1/-1}
+.tabs{display:flex;gap:6px;margin:16px 0 4px}.tab{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 16px;border-radius:999px;font:inherit;font-weight:600;cursor:pointer}.tab.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.spark{display:flex;align-items:flex-end;gap:4px;height:80px;margin-top:6px}.spark div{flex:1;background:var(--acc);border-radius:4px 4px 0 0;min-height:2px;opacity:.85}.spark-l{display:flex;gap:4px;font-size:10px;color:var(--mute)}.spark-l span{flex:1;text-align:center}
+.pill{display:inline-block;background:var(--accbg);color:var(--acc);border-radius:999px;padding:1px 8px;font-size:12px;margin:1px 2px 1px 0}.live{color:var(--acc);font-weight:700}
 </style>
 </head>
 <body>
@@ -41,9 +44,13 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 4px;t
     <div class="grow"><h1>Hockey FFH – Résultats</h1><div class="sub" id="sub">Chargement…</div></div>
     <span class="badge init" id="badge"><i></i><span>…</span></span>
   </header>
+  <div class="tabs"><button class="tab on" data-tab="state">🛠 État</button><button class="tab" data-tab="usage">📈 Fréquentation</button></div>
+  <div id="pState">
   <div class="actions" id="actions"></div>
   <div class="grid" id="tiles"></div>
   <div class="cols" id="cols"></div>
+  </div>
+  <div id="pUsage" hidden></div>
 </div>
 <script>
 const base = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
@@ -99,6 +106,37 @@ async function load() {
   ${s.errors.length ? `<div class="card full"><h2>Erreurs récentes</h2><table>${s.errors.map((x) => `<tr><td style="width:150px">${dt(x.at)}</td><td>${esc(x.msg)}</td></tr>`).join('')}</table></div>` : ''}`;
 }
 load(); setInterval(load, 10000);
+let tab = 'state';
+document.querySelectorAll('.tab').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('on', x === b)); $('#pState').hidden = tab !== 'state'; $('#pUsage').hidden = tab !== 'usage'; if (tab === 'usage') loadUsage(); }));
+const mmss = (s) => s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0') + ' s';
+const SECT = { home: 'Accueil', matchs: 'Matchs', comps: 'Classements', comp: 'Compétition', buteurs: 'Buteurs', joueurs: 'Joueurs', joueur: 'Fiche joueur', arbitres: 'Arbitres', arbitre: 'Fiche arbitre', equipes: 'Équipes', equipe: 'Fiche équipe', club: 'Club', match: 'Feuille de match', actus: 'Actus', search: 'Recherche' };
+async function loadUsage() {
+  let u; try { u = await (await fetch(base + 'usage', { cache: 'no-store' })).json(); } catch { $('#pUsage').innerHTML = '<div class="empty">Statistiques indisponibles.</div>'; return; }
+  const max = Math.max(1, ...u.series.map((d) => d.views));
+  $('#pUsage').innerHTML = `
+  <div class="grid" style="margin-top:12px">
+    <div class="tile"><b class="${u.online ? 'live' : ''}">${u.online}</b><span>en ligne maintenant</span></div>
+    <div class="tile"><b>${u.visitors.today}</b><span>visiteurs aujourd’hui</span></div>
+    <div class="tile"><b>${u.visitors.week}</b><span>visiteurs sur 7 jours</span></div>
+    <div class="tile"><b>${u.visitors.total}</b><span>visiteurs distincts (total)</span></div>
+    <div class="tile"><b>${u.views.week}</b><span>pages vues sur 7 jours</span></div>
+    <div class="tile"><b>${mmss(u.avgSessionSec)}</b><span>durée moyenne d’une visite (30 j)</span></div>
+    <div class="tile"><b>${u.pwaShare}%</b><span>ont installé l’app</span></div>
+    <div class="tile"><b>${u.mobileShare}%</b><span>sur mobile</span></div>
+  </div>
+  <div class="cols">
+    <div class="card full"><h2>Pages vues – 14 derniers jours</h2><div class="spark">${u.series.map((d) => `<div title="${d.day} : ${d.views} pages, ${d.visitors} visiteurs" style="height:${Math.round(100 * d.views / max)}%"></div>`).join('')}</div><div class="spark-l">${u.series.map((d) => `<span>${d.day.slice(8)}</span>`).join('')}</div></div>
+    <div class="card"><h2>Rubriques les plus vues</h2>${u.pages.length ? `<table><tr><th>Rubrique</th><th>Vues</th><th>Temps</th></tr>${u.pages.map((p) => `<tr><td>${esc(SECT[p.page] || p.page)}</td><td>${p.views}</td><td>${dur(p.seconds)}</td></tr>`).join('')}</table>` : '<div class="empty">Pas encore de données.</div>'}</div>
+    <div class="card"><h2>Pages précises les plus vues</h2>${u.objects.length ? `<table><tr><th>Page</th><th>Vues</th><th>Temps</th></tr>${u.objects.map((p) => `<tr><td>${esc(p.label)}</td><td>${p.views}</td><td>${dur(p.seconds)}</td></tr>`).join('')}</table>` : '<div class="empty">Pas encore de données.</div>'}</div>
+    <div class="card"><h2>Équipes les plus mises en favori</h2>${u.favTeams.length ? `<table><tr><th>Équipe</th><th>Visiteurs</th></tr>${u.favTeams.map((t) => `<tr><td>⭐ ${esc(t.label)}</td><td>${t.visitors}</td></tr>`).join('')}</table>` : '<div class="empty">Aucun favori pour le moment.</div>'}</div>
+    <div class="card"><h2>Appareils</h2>${u.devices.length ? `<table>${u.devices.map((d) => `<tr><td>${esc(d.label)}</td><td>${d.n}</td></tr>`).join('')}</table>` : '<div class="empty">—</div>'}</div>
+    <div class="card full"><h2>Qui accède (visiteurs anonymes)</h2>${u.people.length ? `<table><tr><th>Visiteur</th><th>Dernière visite</th><th>Visites</th><th>Pages</th><th>Temps total</th><th>Appareil</th><th>Équipes favorites</th></tr>${u.people.map((p) => `<tr><td>${p.online ? '<span class="live">● </span>' : ''}${esc(p.label)}${p.pwa ? ' <span class="pill">app</span>' : ''}</td><td>${ago(new Date(p.last).toISOString())}</td><td>${p.visits}</td><td>${p.views}</td><td>${dur(p.seconds)}</td><td>${esc(p.device)}</td><td>${p.favs.map((f) => `<span class="pill">${esc(f)}</span>`).join('') || '<span class="muted">—</span>'}</td></tr>`).join('')}</table>` : '<div class="empty">Personne n’a encore ouvert le site.</div>'}</div>
+    <div class="card full"><h2>Derniers ajouts / retraits de favoris</h2>${u.favLog.length ? `<table>${u.favLog.map((e) => `<tr><td style="width:150px">${dt(new Date(e.at).toISOString())}</td><td>${esc(e.who)}</td><td>${e.on ? '⭐ a ajouté' : '☆ a retiré'}</td><td>${esc(e.team)}</td></tr>`).join('')}</table>` : '<div class="empty">Aucun mouvement.</div>'}</div>
+  </div>
+  <p class="muted small" style="margin-top:12px">Mesure anonyme : un identifiant aléatoire par navigateur, sans nom, e-mail ni adresse IP. Les visiteurs ayant activé « Ne pas suivre » ne sont pas comptés. Les « visiteurs » sont des navigateurs, pas des personnes : une même personne sur deux appareils compte deux fois. Données conservées 180 jours.</p>`;
+}
+setInterval(() => { if (tab === 'usage') loadUsage(); }, 15000);
+
 </script>
 </body>
 </html>

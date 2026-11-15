@@ -46,3 +46,7 @@
 ## 1.6.0
 - Nouvelle section Arbitres (Classements → Arbitres) : matchs arbitrés, cartons verts/jaunes/rouges, cartons par match, fiche détaillée par arbitre. Pour un match arbitré à deux, les cartons comptent pour chaque arbitre. Les arbitres de la feuille de match sont cliquables.
 - Au premier démarrage, les feuilles déjà stockées sont relues une fois pour récupérer les arbitres.
+
+## 1.7.0
+- Panneau HA : nouvel onglet « Fréquentation » (visiteurs en ligne, visiteurs par jour/semaine, durée des visites, pages et rubriques les plus vues, équipes les plus mises en favori, appareils, liste des visiteurs anonymes avec leurs favoris).
+- Mesure anonyme : identifiant aléatoire par navigateur, sans adresse IP ni nom ; respecte « Ne pas suivre » ; conservation 180 jours ; mention sur l’accueil.

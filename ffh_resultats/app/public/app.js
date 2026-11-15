@@ -104,6 +104,7 @@ views.home = async () => {
     h += `<h2>${esc(dayLong(dk))}<a href="#/matchs/${dk}">Les ${day.length} matchs</a></h2>${groupedMatches(day.slice(0, 6))}`;
   }
   h += `<h2>À la une<a href="#/actus">Toutes les actus</a></h2><div class="card" id="home-news"><div class="loading">…</div></div>`;
+  h += '<p class="muted small center" style="margin-top:18px">📊 La fréquentation est mesurée de façon anonyme (aucun nom, aucune adresse IP).</p>';
   app.innerHTML = h;
   app.querySelectorAll('[data-rank]').forEach(async (el) => {
     if (!el.dataset.poule) return;
@@ -202,7 +203,7 @@ views.comp = async (id, pouleId) => {
 const teamComps = (t) => [...t.comps].map((id) => IDX.comp[id]).filter(Boolean);
 const teamLabel = (t) => teamComps(t).map((c) => c.name).slice(0, 2).join(' · ');
 const teamMeta = (t) => { const c = teamComps(t)[0]; return c ? `${discLabel(c.disc)} · ${sexeLabel(c.sexe)}` : ''; };
-function toggleTeam(id) { const i = favs.teams.indexOf(id); i < 0 ? favs.teams.push(id) : favs.teams.splice(i, 1); saveFavs(); if (i < 0) askNotif(); }
+function toggleTeam(id) { const i = favs.teams.indexOf(id); i < 0 ? favs.teams.push(id) : favs.teams.splice(i, 1); saveFavs(); track('fav', { team: id, on: i < 0 }); if (i < 0) askNotif(); }
 const teamRow = (t) => `<div class="row"><a class="grow tl" href="#/equipe/${t.id}"><b>${esc(t.name)}</b><span class="muted small">${esc(teamLabel(t))} · ${esc(teamMeta(t))}</span></a>${star(favs.teams.includes(t.id), `data-team="${t.id}"`)}</div>`;
 let tState = { disc: '', sexe: '', q: '' };
 views.equipes = async () => {
@@ -418,11 +419,24 @@ async function route(keep) {
   if (!D) { app.innerHTML = '<div class="loading">Chargement des résultats…</div>'; await load(true); }
   if (!D) { app.innerHTML = '<div class="empty">Impossible de charger les données.<br><button class="btn" onclick="location.reload()">Réessayer</button></div>'; return; }
   if (keep !== true) window.scrollTo(0, 0);
+  if (keep !== true) track('view', { page: ['equipe', 'comp', 'match', 'club'].includes(v) && a ? `${v}:${a}` : v });
   try { await views[v](a, b); } catch (e) { console.error(e); app.innerHTML = '<div class="empty">Une erreur est survenue.</div>'; }
 }
 let depth = 0, backing = false; // profondeur de navigation interne (bouton retour)
 addEventListener('hashchange', () => { if (backing) { depth = Math.max(depth - 1, 0); backing = false; } else depth++; route(); });
 $('#back').onclick = () => { if (depth > 0) { backing = true; history.back(); } else location.hash = '#/'; };
+
+// ---------- mesure d'audience anonyme (identifiant aléatoire, aucune donnée personnelle) ----------
+const DNT = navigator.doNotTrack === '1' || window.doNotTrack === '1';
+const rnd = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, '0')).join('');
+let VID = store.get('vid', null); if (!VID) { VID = rnd(12); store.set('vid', VID); }
+const SID = rnd(8);
+function track(type, extra = {}) {
+  if (DNT) return;
+  try { fetch('/api/track', { method: 'POST', keepalive: true, headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ type, vid: VID, sid: SID, ...extra }) }).catch(() => {}); } catch {}
+}
+setInterval(() => { if (!document.hidden) track('ping'); }, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) track('ping'); });
 
 // ---------- Web Push (app fermée) ----------
 const b64uToU8 = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
@@ -459,6 +473,7 @@ function diffAlerts() {
 (async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   bellState(); syncPush(false);
+  track('hello', { favs: favs.teams, pwa: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true });
   await route(); diffAlerts();
   setInterval(async () => { if (document.hidden) return; if (await load()) { diffAlerts(); if (!/^#\/(search|equipes|clubs)/.test(location.hash)) route(true); } }, 60e3);
 })();

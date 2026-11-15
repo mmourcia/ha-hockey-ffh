@@ -6,6 +6,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createPush } from './push.js';
+import { createStats } from './stats.js';
 import { norm } from './text.js';
 import { aggregateReferees, listReferees, refereeDetail, refId, cleanRefName } from './referees.js';
 import { compactSheet, aggregate, search as searchPlayers, isYouthComp } from './players.js';
@@ -20,6 +21,7 @@ const UP = 'https://championnats.ffhockey.org/rest2/';
 const UA = 'FFH-Resultats-PWA/1.0';
 const INCLUDE_YOUTH = process.env.INCLUDE_YOUTH === 'true';
 const push = createPush(DATA);
+const usage = createStats(DATA);
 const health = { start: Date.now(), refreshes: [], errors: [], changes: [], news: null, refreshing: false, lastOk: null };
 const note = (arr, v, n = 15) => { arr.unshift(v); arr.length = Math.min(arr.length, n); };
 const REFRESH_MS = +process.env.REFRESH_MS || 5 * 60e3;
@@ -229,6 +231,12 @@ const api = async (req, res, url) => {
       const idx = store[season]; const byId = Object.fromEntries(idx.matches.map((m) => [m.id, m]));
       return send(req, res, 200, { id: pl.id, name: pl.name, rows: [...pl.rows.values()], games: pl.games.map((g) => ({ ...g, match: byId[g.m] })).sort((a, b) => (b.match?.date || '').localeCompare(a.match?.date || '')) }, { 'cache-control': 'public, max-age=60' });
     }
+    if (p[0] === 'track' && req.method === 'POST') {
+      const body = await new Promise((ok, ko) => { let b = ''; req.on('data', (d) => { b += d; if (b.length > 4096) req.destroy(); }).on('end', () => ok(b)).on('error', ko); });
+      let j = {}; try { j = JSON.parse(body || '{}'); } catch {}
+      usage.track(j, req.headers['user-agent'] || '');
+      res.writeHead(204, noCache); return res.end();
+    }
     if (p[0] === 'push') {
       if (p[1] === 'key') return send(req, res, 200, { key: push.publicKey });
       const body = await new Promise((ok, ko) => { let b = ''; req.on('data', (d) => { b += d; if (b.length > 1e5) req.destroy(); }).on('end', () => ok(b)).on('error', ko); });
@@ -290,12 +298,22 @@ async function status() {
     refreshes: health.refreshes, changes: health.changes, errors: health.errors,
   };
 }
+function usageSummary() {
+  const idx = store[currentSeason]; const teams = {}, comps = {}, matches = {};
+  if (idx) { idx.comps.forEach((c) => (comps[c.id] = c)); idx.matches.forEach((m) => { matches[m.id] = m; if (!m.bye) { teams[m.t1.id] = { name: m.t1.name, comp: m.comp }; teams[m.t2.id] = { name: m.t2.name, comp: m.comp }; } }); }
+  const team = (id) => { const t = teams[id]; return t ? `${t.name} (${comps[t.comp]?.name || '?'})` : id; };
+  const object = (k) => { const [kind, ...rest] = k.split(':'), id = rest.join(':'); if (kind === 'equipe') return '🏑 ' + team(id); if (kind === 'comp') return '🏆 ' + (comps[id]?.name || id); if (kind === 'match') { const m = matches[id]; return m ? `📋 ${m.t1.name} – ${m.t2.name}` : k; } return k; };
+  return usage.summary({ team, object });
+}
 if (ADMIN_PORT) http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'); const json = (c, o) => { res.writeHead(c, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(o)); };
   try {
     if (u.pathname.endsWith('/status')) return json(200, await status());
+    if (u.pathname.endsWith('/usage')) return json(200, usageSummary());
     if (req.method === 'POST' && u.pathname.endsWith('/refresh')) { refresh(currentSeason); return json(202, { ok: true }); }
     if (req.method === 'POST' && u.pathname.endsWith('/crawl')) { crawlSheets(currentSeason); return json(202, { ok: true }); }
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(fs.readFileSync(path.join(ROOT, 'admin.html')));
   } catch (e) { json(500, { error: e.message }); }
 }).listen(ADMIN_PORT, () => console.log(`Panneau d'administration (ingress) → :${ADMIN_PORT}`));
+
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { usage.save(); } catch {} process.exit(0); });
