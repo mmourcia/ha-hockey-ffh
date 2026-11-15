@@ -27,3 +27,6 @@
 
 ## 1.3.0
 - Option `include_youth_players` (désactivée par défaut) pour inclure les catégories de jeunes dans la section Joueurs.
+
+## 1.3.1
+- Correctif : les cartons du classement des buteurs étaient faux (l’API FFH les cumule) ; ils sont désormais recalculés depuis les feuilles de match.

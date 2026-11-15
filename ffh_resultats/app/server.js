@@ -6,6 +6,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createPush } from './push.js';
+import { norm } from './text.js';
 import { compactSheet, aggregate, search as searchPlayers, isYouthComp } from './players.js';
 import { normMatch, normComp, normStandings, normScorers, parseSheet, parseNewsHtml } from './lib.js';
 
@@ -174,7 +175,20 @@ const api = async (req, res, url) => {
       const [st, sc] = await Promise.all([
         cached(`st${season}${p[1]}`, 2 * 60e3, () => up('Championnats/ClassementEquipes', { SaisonAnnee: season, PouleId: p[1] })),
         cached(`sc${season}${p[1]}`, 5 * 60e3, () => up('Championnats/ClassementButeurs', { SaisonAnnee: season, PouleId: p[1] })).catch(() => null)]);
-      return send(req, res, 200, { standings: normStandings(st), scorers: normScorers(sc) }, { 'cache-control': 'public, max-age=60' });
+      const scorers = normScorers(sc);
+      // L'API FFH cumule les cartons (un vert compte aussi en jaune et en rouge) : on recalcule depuis les feuilles de match.
+      try {
+        const idx = await ensure(season);
+        const compId = idx.matches.find((m) => String(m.poule) === String(p[1]))?.comp;
+        const tok = (n) => norm(n).split(/\s+/).filter(Boolean).sort().join(' ');
+        const byName = new Map();
+        for (const pl of players(season).values()) for (const r of pl.rows.values()) if (r.comp.id === compId) {
+          const k = tok(pl.name), a = byName.get(k) || { green: 0, yellow: 0, red: 0 };
+          a.green += r.green; a.yellow += r.yellow; a.red += r.red; byName.set(k, a);
+        }
+        for (const s of scorers) { const a = byName.get(tok(s.name)) || { green: 0, yellow: 0, red: 0 }; Object.assign(s, a); }
+      } catch { for (const s of scorers) s.green = s.yellow = s.red = 0; }
+      return send(req, res, 200, { standings: normStandings(st), scorers }, { 'cache-control': 'public, max-age=60' });
     }
     if (p[0] === 'match' && p[1]) {
       const r = await cached(`fm${season}${p[1]}`, 5 * 60e3, () => up('Championnats/FeuilleDeMatchHTML', { SaisonAnnee: season, RencId: p[1] }));
