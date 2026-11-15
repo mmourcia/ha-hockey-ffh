@@ -7,7 +7,9 @@ PWA de résultats de la Fédération Française de Hockey (gazon, salle, dévelo
 |---|---|
 | `vapid_subject` | Contact `mailto:` envoyé aux services push (obligatoire en pratique) |
 | `refresh_minutes` | Fréquence de relecture des API FFH (défaut 5) |
+| `tailscale_authkey` | Clé `tskey-auth-…` réutilisable : publie le site en HTTPS via Tailscale Funnel (laisser vide pour ne pas publier) |
+| `tailscale_hostname` | Nom de l'appareil : adresse `https://<nom>.<réseau>.ts.net` |
 
 ## Accès
-Interface sur le port **8099**. Le Web Push exige HTTPS : exposez ce port avec Tailscale Funnel ou un reverse proxy.
+Interface sur le port **8099**. Le Web Push exige HTTPS : renseignez `tailscale_authkey` (prérequis : HTTPS et Funnel activés dans la console Tailscale) ou utilisez un reverse proxy.
 Les clés VAPID, abonnements et le cache sont dans `/data` (inclus dans les sauvegardes HA).

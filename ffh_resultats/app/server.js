@@ -6,6 +6,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createPush } from './push.js';
+import { compactSheet, aggregate, search as searchPlayers, isYouthComp } from './players.js';
 import { normMatch, normComp, normStandings, normScorers, parseSheet, parseNewsHtml } from './lib.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -78,6 +79,7 @@ async function refresh(season) {
   try {
     const prev = store[season]; const next = await buildIndex(season);
     store[season] = next; next.gz = zlib.gzipSync(JSON.stringify(next));
+    crawlSheets(season);
     if (prev) { // scores nouveaux ou modifiés -> Web Push
       const old = new Map(prev.matches.map((m) => [m.id, `${m.s1}-${m.s2}-${m.status}`]));
       const changed = next.matches.filter((m) => m.status === 'played' && old.has(m.id) && old.get(m.id) !== `${m.s1}-${m.s2}-${m.status}`);
@@ -92,6 +94,34 @@ async function ensure(season) {
   if (fs.existsSync(f)) { store[season] = JSON.parse(fs.readFileSync(f)); store[season].gz = zlib.gzipSync(JSON.stringify(store[season])); refresh(season); return store[season]; }
   await refresh(season); return store[season];
 }
+
+// ---------- feuilles de match : collecte incrémentale + agrégat joueurs ----------
+const sheetFile = path.join(DATA, 'sheets.json');
+let sheets = fs.existsSync(sheetFile) ? JSON.parse(fs.readFileSync(sheetFile)) : {};
+let playersIdx = { key: '', map: new Map() }, crawling = false;
+const compsMap = (idx) => Object.fromEntries(idx.comps.map((c) => [c.id, c]));
+async function crawlSheets(season) {
+  const idx = store[season]; if (!idx || crawling) return;
+  const cm = compsMap(idx);
+  const todo = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && !sheets[m.id] && cm[m.comp] && !isYouthComp(cm[m.comp].name));
+  if (!todo.length) return;
+  crawling = true; let n = 0;
+  try {
+    await pool(todo, 3, async (m) => {
+      const r = await up('Championnats/FeuilleDeMatchHTML', { SaisonAnnee: season, RencId: m.id });
+      if (r?.RenduHTML) sheets[m.id] = compactSheet(parseSheet(r.RenduHTML));
+      if (++n % 100 === 0) fs.writeFileSync(sheetFile, JSON.stringify(sheets));
+    });
+    fs.writeFileSync(sheetFile, JSON.stringify(sheets));
+    console.log(`feuilles: ${n} nouvelle(s), ${Object.keys(sheets).length} stockée(s)`);
+  } catch (e) { console.warn('crawl', e.message); } finally { crawling = false; }
+}
+function players(season) {
+  const idx = store[season]; const key = `${idx.version}:${Object.keys(sheets).length}`;
+  if (playersIdx.key !== key) playersIdx = { key, map: aggregate(idx.matches, sheets, compsMap(idx)) };
+  return playersIdx.map;
+}
+const coverage = (season) => { const idx = store[season]; const cm = compsMap(idx); const elig = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && cm[m.comp] && !isYouthComp(cm[m.comp].name)); return { sheets: elig.filter((m) => sheets[m.id]).length, total: elig.length }; };
 
 // ---------- news ----------
 const NEWS_PAGES = ['/', '/actualites/actualite-federale.html', '/actualites/actualites-championnats.html', '/actualites/coup-de-crosse.html'];
@@ -137,6 +167,18 @@ const api = async (req, res, url) => {
       if (!r?.RenduHTML) return send(req, res, 404, { error: 'Feuille de match indisponible' });
       return send(req, res, 200, parseSheet(r.RenduHTML), { 'cache-control': 'public, max-age=120' });
     }
+    if (p[0] === 'players') {
+      await ensure(season);
+      const q = url.searchParams.get('q') || '', team = url.searchParams.get('team') || '', teams = (url.searchParams.get('teams') || '').split(',').filter(Boolean);
+      const r = searchPlayers(players(season), { q, team, teams: teams.length ? teams : null });
+      return send(req, res, 200, { ...r, coverage: coverage(season) }, { 'cache-control': 'public, max-age=60' });
+    }
+    if (p[0] === 'player' && p[1]) {
+      await ensure(season);
+      const pl = players(season).get(p[1]); if (!pl) return send(req, res, 404, { error: 'Joueur introuvable' });
+      const idx = store[season]; const byId = Object.fromEntries(idx.matches.map((m) => [m.id, m]));
+      return send(req, res, 200, { id: pl.id, name: pl.name, rows: [...pl.rows.values()], games: pl.games.map((g) => ({ ...g, match: byId[g.m] })).sort((a, b) => (b.match?.date || '').localeCompare(a.match?.date || '')) }, { 'cache-control': 'public, max-age=60' });
+    }
     if (p[0] === 'push') {
       if (p[1] === 'key') return send(req, res, 200, { key: push.publicKey });
       const body = await new Promise((ok, ko) => { let b = ''; req.on('data', (d) => { b += d; if (b.length > 1e5) req.destroy(); }).on('end', () => ok(b)).on('error', ko); });
@@ -164,5 +206,6 @@ http.createServer((req, res) => {
   const s = await up('Championnats/SaisonEnCours').catch(() => null);
   currentSeason = s?.SaisonAnnee || String(new Date().getFullYear() + (new Date().getMonth() > 6 ? 1 : 0));
   await ensure(currentSeason);
+  crawlSheets(currentSeason);
   setInterval(() => refresh(currentSeason), REFRESH_MS);
 });

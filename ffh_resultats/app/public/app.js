@@ -137,7 +137,7 @@ views.matchs = async (day) => {
 views.comps = async () => {
   const by = {};
   D.comps.forEach((c) => ((by[c.disc] ||= {})[c.sexe] ||= []).push(c));
-  let h = '<h1>Compétitions</h1><div class="tabsub"><button class="on">Classements</button><button onclick="location.hash=\'#/buteurs\'">⚽ Buteurs</button></div>';
+  let h = '<h1>Compétitions</h1>' + compTabs('comps');
   for (const disc of ['GAZON', 'SALLE', 'DEVELOP']) {
     if (!by[disc]) continue;
     for (const sx of ['M', 'F', 'FM']) {
@@ -207,30 +207,62 @@ views.equipes = async () => {
 };
 views.clubs = views.equipes;
 
-let sSel = store.get('f.scorer', '');
+const compTabs = (on) => `<div class="tabsub">${[['comps', 'Classements'], ['buteurs', '⚽ Buteurs'], ['joueurs', '👤 Joueurs']].map(([h, l]) => `<a href="#/${h}" class="${on === h ? 'on' : ''}">${l}</a>`).join('')}</div>`;
+const favComps = () => [...new Set(favs.teams.map((id) => id.split(':')[0]))].filter((c) => IDX.comp[c]);
+let sSel = '', sTouched = false;
 views.buteurs = async () => {
+  const mine = favComps();
   const sorted = D.comps.slice().sort((a, b) => (a.disc === b.disc ? 0 : a.disc === 'GAZON' ? -1 : 1) || a.order - b.order || a.name.localeCompare(b.name));
-  if (!IDX.comp[sSel]) sSel = (sorted.find((c) => /elite hommes/i.test(c.name)) || sorted[0]).id;
-  app.innerHTML = `<h1>Meilleurs buteurs</h1><select class="search" id="sc">${sorted.map((c) => `<option value="${c.id}" ${c.id === sSel ? 'selected' : ''}>${esc(c.name)} — ${esc(discLabel(c.disc))} ${esc(sexeLabel(c.sexe))}</option>`).join('')}</select><div id="sl"><div class="loading">Chargement…</div></div>`;
+  if (!sTouched || !IDX.comp[sSel]) sSel = mine[0] || (sorted.find((c) => /elite hommes/i.test(c.name)) || sorted[0]).id;
+  const opt = (c) => `<option value="${c.id}" ${c.id === sSel ? 'selected' : ''}>${esc(c.name)} — ${esc(discLabel(c.disc))} ${esc(sexeLabel(c.sexe))}</option>`;
+  app.innerHTML = `<h1>Compétitions</h1>${compTabs('buteurs')}
+  ${mine.length ? `<div class="chips" id="mc">${mine.map((id) => `<button class="chip ${id === sSel ? 'on' : ''}" data-c="${id}">${esc(IDX.comp[id].name)}</button>`).join('')}</div>` : '<p class="muted small">Suivez des équipes (onglet Équipes) pour retrouver ici les buteurs de vos championnats.</p>'}
+  <select class="search" id="sc">${mine.length ? `<optgroup label="Mes championnats">${mine.map((id) => opt(IDX.comp[id])).join('')}</optgroup>` : ''}<optgroup label="Toutes les compétitions">${sorted.map(opt).join('')}</optgroup></select><div id="sl"><div class="loading">Chargement…</div></div>`;
   const load = async () => {
-    const c = IDX.comp[sSel]; store.set('f.scorer', sSel);
+    const c = IDX.comp[sSel];
     const lists = await Promise.all(c.poules.map((p) => api('poule/' + p.id).then((d) => ({ p, d })).catch(() => null)));
     $('#sl').innerHTML = lists.filter(Boolean).map(({ p, d }) => d.scorers.length ? `${c.poules.length > 1 ? `<h2>${esc(p.label)}</h2>` : ''}<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th>🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr><td class="pos">${s.rank}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '').join('') || '<div class="empty">Pas encore de buteurs pour cette compétition.</div>';
   };
-  $('#sc').onchange = (e) => { sSel = e.target.value; $('#sl').innerHTML = '<div class="loading">Chargement…</div>'; load(); };
+  const pick = (id) => { sSel = id; sTouched = true; views.buteurs(); };
+  $('#sc').onchange = (e) => pick(e.target.value);
+  app.querySelectorAll('[data-c]').forEach((b) => (b.onclick = () => pick(b.dataset.c)));
   load();
 };
 
-views.club = async (code) => {
-  const c = IDX.club[code]; if (!c) return notFound();
-  const teams = Object.values(IDX.teams).filter((t) => t.club === code).sort((a, b) => teamMeta(a).localeCompare(teamMeta(b)) || a.name.localeCompare(b.name));
-  const ms = D.matches.filter((m) => !m.bye && (m.t1.club === code || m.t2.club === code)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const upcoming = ms.filter((m) => m.status === 'upcoming' && !isLate(m)); const done = ms.filter((m) => m.status !== 'upcoming').reverse();
-  app.innerHTML = `<h1 style="margin-bottom:0">${esc(c.name)}</h1><div class="muted small">${esc(c.city || '')}</div>
-  <h2>Équipes engagées</h2><div class="card list">${teams.map(teamRow).join('') || '<div class="pad muted">Aucune équipe engagée cette saison.</div>'}</div>
-  ${upcoming.length ? `<h2>À venir</h2><div class="card">${upcoming.slice(0, 15).map((m) => matchCard(m, { showComp: true })).join('')}</div>` : ''}
-  ${done.length ? `<h2>Résultats</h2><div class="card">${done.slice(0, 20).map((m) => matchCard(m, { showComp: true })).join('')}</div>` : ''}`;
-  app.querySelectorAll('[data-team]').forEach((b) => (b.onclick = (ev) => { ev.preventDefault(); toggleTeam(b.dataset.team); views.club(code); }));
+// ---------- Joueurs ----------
+let jState = { q: '', mine: true };
+const statCells = (r) => `<span title="Buts">⚽ <b>${r.goals}</b></span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs">${r.matches} m.</span>`;
+views.joueurs = async () => {
+  const mineTeams = favs.teams;
+  app.innerHTML = `<h1>Compétitions</h1>${compTabs('joueurs')}
+  <input class="search" id="jq" type="search" placeholder="Nom ou prénom du joueur…" autocomplete="off" value="${esc(jState.q)}">
+  ${mineTeams.length ? `<div class="chips"><button class="chip ${jState.mine ? 'on' : ''}" data-m="1">★ Mes équipes</button><button class="chip ${!jState.mine ? 'on' : ''}" data-m="0">Tous les joueurs</button></div>` : ''}
+  <div id="jl"><div class="loading">Chargement…</div></div><p class="muted small" id="jnote"></p>`;
+  let timer, seq = 0;
+  const run = async () => {
+    const q = jState.q.trim(); const useMine = mineTeams.length && jState.mine;
+    if (!useMine && q.length < 2) { $('#jl').innerHTML = '<div class="empty">Tapez au moins 2 lettres du nom d’un joueur.</div>'; return; }
+    const my = ++seq;
+    try {
+      const d = await api(`players?q=${encodeURIComponent(q)}${useMine ? '&teams=' + encodeURIComponent(mineTeams.join(',')) : ''}`);
+      if (my !== seq) return;
+      $('#jl').innerHTML = d.rows.length ? `<div class="card list">${d.rows.map((r) => `<a href="#/joueur/${r.id}"><div class="grow"><div><b>${esc(r.name)}</b></div><div class="muted small">${esc(r.team.name)} · ${esc(r.comp.name)}</div><div class="stats">${statCells(r)}</div></div><span class="chev">›</span></a>`).join('')}</div>${d.total > d.rows.length ? `<p class="muted small center">${d.total} résultats : affinez la recherche.</p>` : ''}` : '<div class="empty">Aucun joueur trouvé.</div>';
+      $('#jnote').textContent = `Données issues de ${d.coverage.sheets} feuilles de match sur ${d.coverage.total} disponibles. Catégories de jeunes exclues.`;
+    } catch { $('#jl').innerHTML = '<div class="empty">Source indisponible.</div>'; }
+  };
+  $('#jq').oninput = (e) => { jState.q = e.target.value; clearTimeout(timer); timer = setTimeout(run, 250); };
+  app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => { jState.mine = b.dataset.m === '1'; views.joueurs(); }));
+  run();
+};
+views.joueur = async (id) => {
+  app.innerHTML = '<div class="loading">Chargement…</div>';
+  try {
+    const p = await api('player/' + id);
+    const tot = p.rows.reduce((a, r) => ({ goals: a.goals + r.goals, green: a.green + r.green, yellow: a.yellow + r.yellow, red: a.red + r.red, matches: a.matches + r.matches }), { goals: 0, green: 0, yellow: 0, red: 0, matches: 0 });
+    app.innerHTML = `<h1 style="margin-bottom:2px">${esc(p.name)}</h1><div class="stats" style="margin-bottom:10px">${statCells(tot)}</div>
+    ${p.rows.map((r) => `<div class="card pad" style="margin-bottom:8px"><a href="#/equipe/${r.team.id}"><b>${esc(r.team.name)}</b></a><div class="muted small">${esc(r.comp.name)}</div><div class="stats">${statCells(r)}</div></div>`).join('')}
+    <h2>Match par match</h2><div class="card">${p.games.map((g) => g.match ? `<div>${matchCard(g.match, { showComp: true })}<div class="stats small" style="padding:0 12px 8px 74px">${g.goals ? `⚽ ${g.goals} ` : ''}${'🟩'.repeat(g.c[0])}${'🟨'.repeat(g.c[1])}${'🟥'.repeat(g.c[2])}${!g.goals && !g.c.some(Boolean) ? '<span class="muted">—</span>' : ''}</div></div>` : '').join('')}</div>`;
+  } catch { app.innerHTML = '<div class="empty">Joueur introuvable. <a class="btn" href="#/joueurs">Rechercher</a></div>'; }
 };
 
 views.equipe = async (id) => {
@@ -291,9 +323,9 @@ const notFound = () => (app.innerHTML = '<div class="empty">Page introuvable. <a
 // ---------- routeur ----------
 async function route(keep) {
   const [, name = '', a, b] = location.hash.replace(/^#/, '').split('/');
-  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs' }[name] || 'home';
-  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', actus: 'actus', search: 'home' }[v];
-  const root = ['home', 'matchs', 'comps', 'equipes', 'actus'].includes(v);
+  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs', joueurs: 'joueurs', joueur: 'joueur' }[name] || 'home';
+  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', joueurs: 'comps', joueur: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', actus: 'actus', search: 'home' }[v];
+  const root = ['home', 'matchs', 'comps', 'equipes', 'actus', 'buteurs', 'joueurs'].includes(v);
   $('#back').hidden = root;
   document.querySelectorAll('.tabs a').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
   if (!D) { app.innerHTML = '<div class="loading">Chargement des résultats…</div>'; await load(true); }

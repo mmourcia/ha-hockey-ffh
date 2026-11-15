@@ -77,8 +77,10 @@ export function parseSheet(html = '') {
       if (!name) return;
       const card = /CartonRouge/.test(tds[o + 3]) ? 'red' : /CartonJaune/.test(tds[o + 3]) ? 'yellow' : /CartonVert/.test(tds[o + 3]) ? 'green' : null;
       if (card) out.cards[card]++;
+      const cnt = (re) => (tds[o + 3].match(re) || []).length;
+      const cd = { green: cnt(/CartonVert/g), yellow: cnt(/CartonJaune/g), red: cnt(/CartonRouge/g) };
       const shirt = stripTags(tds[o + 1]);
-      out.players[side].push({ licence: stripTags(tds[o]), shirt, gk: /gardien/i.test(shirt), name, card, hl: /txt-vert|txt-orange/.test(tds[o + 2]) });
+      out.players[side].push({ licence: stripTags(tds[o]), shirt, gk: /gardien/i.test(shirt), name, card, cd, hl: /txt-vert|txt-orange/.test(tds[o + 2]) });
     });
   }
   const buteurs = [...h.matchAll(/<strong>Buteurs\s*:\s*<\/strong>([\s\S]*?)<\/div>/g)].map((m) => stripTags(m[1]));

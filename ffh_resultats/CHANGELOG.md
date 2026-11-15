@@ -16,3 +16,8 @@
 - Nouvel écran « Buteurs » : classement par compétition (onglet Classements).
 - Accueil compact : un bloc par équipe suivie, 6 matchs du jour, 2 actus.
 - Menu toujours visible (en haut sur ordinateur).
+
+## 1.1.0
+- Section Joueurs : recherche par nom, buts, cartons et matchs (agrégés depuis les feuilles de match ; catégories de jeunes exclues, aucun numéro de licence exposé).
+- Buteurs : championnats de vos équipes favorites en premier.
+- Publication HTTPS intégrée via Tailscale Funnel (options `tailscale_authkey` et `tailscale_hostname`).
