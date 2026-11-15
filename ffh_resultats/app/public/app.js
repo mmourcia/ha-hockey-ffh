@@ -91,7 +91,8 @@ views.home = async () => {
       const ms = D.matches.filter((m) => !m.bye && (m.t1.id === id || m.t2.id === id));
       const next = ms.filter((m) => m.status === 'upcoming' && t(m) > now - 2 * 3600e3).sort((a, b) => t(a) - t(b))[0];
       const last = ms.filter((m) => m.status === 'played').sort((a, b) => t(b) - t(a))[0];
-      return `<div class="fteam"><a class="fh" href="#/equipe/${id}"><b>${esc(tm.name)}</b><span class="muted small">${esc(teamLabel(tm))} · ${esc(teamMeta(tm))}</span></a>${last ? matchCard(last) : ''}${next ? matchCard(next) : ''}${!last && !next ? '<div class="pad muted small">Aucun match programmé.</div>' : ''}</div>`;
+      const pid = (ms.find((m) => m.poule) || {}).poule;
+      return `<div class="fteam"><a class="fh" href="#/equipe/${id}"><b>${esc(tm.name)}</b><span class="muted small">${esc(teamLabel(tm))} · ${esc(teamMeta(tm))}</span><span class="rank small" data-rank="${esc(id)}" data-poule="${esc(pid || '')}"></span></a><div class="qlinks"><a href="#/equipe/${id}/classement">📊 Classement</a><a href="#/equipe/${id}/matchs">📅 Calendrier</a><a href="#/equipe/${id}/joueurs">👥 Joueurs</a></div>${last ? matchCard(last) : ''}${next ? matchCard(next) : ''}${!last && !next ? '<div class="pad muted small">Aucun match programmé.</div>' : ''}</div>`;
     }).join('');
     h += '</div>';
   }
@@ -104,6 +105,14 @@ views.home = async () => {
   }
   h += `<h2>À la une<a href="#/actus">Toutes les actus</a></h2><div class="card" id="home-news"><div class="loading">…</div></div>`;
   app.innerHTML = h;
+  app.querySelectorAll('[data-rank]').forEach(async (el) => {
+    if (!el.dataset.poule) return;
+    try {
+      const d = await api('poule/' + el.dataset.poule), tid = el.dataset.rank.split(':')[1];
+      const r = d.standings.find((x) => String(x.team.id) === tid);
+      if (r) el.textContent = `${r.pos}${r.pos === 1 ? 'er' : 'e'} / ${d.standings.length} · ${r.pts} pts · ${r.j} j.`;
+    } catch {}
+  });
   api('news').then((n) => { $('#home-news').innerHTML = n.slice(0, 2).map((x) => newsCard(x)).join(''); }).catch(() => { $('#home-news').innerHTML = '<div class="pad muted">Actualités indisponibles.</div>'; });
 };
 
@@ -149,6 +158,18 @@ views.comps = async () => {
   app.innerHTML = h;
 };
 
+function drawStandings(box, d, id) {
+    const COLS = [['pos', '#', 1, 'Classement officiel'], ['team', 'Équipe', 1, 'Ordre alphabétique'], ['j', 'J', -1, 'Matchs joués'], ['g', 'G', -1, 'Victoires'], ['n', 'N', -1, 'Nuls'], ['pp', 'P', 1, 'Moins de défaites'], ['bp', 'BP', -1, 'Meilleure attaque (buts pour)'], ['bc', 'BC', 1, 'Meilleure défense (buts contre)'], ['diff', '+/-', -1, 'Meilleure différence de buts'], ['pts', 'Pts', -1, 'Points']];
+    const val = (r, k) => (k === 'team' ? r.team.name || '' : k === 'pp' ? (r.p || 0) + (r.f || 0) : r[k] ?? 0);
+    const draw = () => {
+      const { k, dir } = stSort, rows = [...d.standings].sort((a, b) => { const x = val(a, k), y = val(b, k); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir || a.pos - b.pos; });
+      const th = COLS.map(([key, lab, def, tip]) => `<th data-s="${key}" title="${tip}" class="sortable${key === 'team' ? ' l' : ''}${k === key ? ' on' : ''}">${lab}${k === key ? (dir === 1 ? ' ▲' : ' ▼') : ''}</th>`).join('');
+      box.innerHTML = `<div class="card"><table class="t st"><tr>${th}</tr>${rows.map((r) => { const tid = `${id}:${r.team.id}`; const t = IDX.teams[tid]; const fav = isFavTeam(t); const mv = r.last && r.pos < r.last ? '<span class="up">▲</span>' : r.last && r.pos > r.last ? '<span class="dn">▼</span>' : ''; const hl = (key) => (k === key ? ' class="hl"' : ''); return `<tr class="${fav ? 'fav' : ''}"><td class="pos">${r.pos}</td><td class="team"><a href="#/equipe/${tid}">${esc(r.team.name)}</a> ${mv}</td><td${hl('j')}>${r.j}</td><td${hl('g')}>${r.g}</td><td${hl('n')}>${r.n}</td><td${hl('pp')}>${r.p + (r.f || 0)}</td><td${hl('bp')}>${r.bp ?? ''}</td><td${hl('bc')}>${r.bc ?? ''}</td><td${hl('diff')}>${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="pts">${r.pts}</td></tr>`; }).join('')}</table></div><p class="muted small">Touchez un en-tête pour trier (BP = attaque, BC = défense). Pts = points officiels FFH (pénalités déduites). ▲▼ = évolution depuis la journée précédente.</p>`;
+      box.querySelectorAll('th[data-s]').forEach((h) => (h.onclick = () => { const def = COLS.find((c) => c[0] === h.dataset.s)[2]; stSort = h.dataset.s === stSort.k ? { k: stSort.k, dir: -stSort.dir } : { k: h.dataset.s, dir: def }; draw(); }));
+    };
+  if (d.standings.length) draw(); else box.innerHTML = '<div class="empty">Classement non disponible pour cette poule.</div>';
+}
+
 let cTab = 'standings';
 let stSort = { k: 'pos', dir: 1 };
 views.comp = async (id, pouleId) => {
@@ -174,15 +195,7 @@ views.comp = async (id, pouleId) => {
       box.innerHTML = d.scorers.length ? `<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th title="Verts">🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr class="${''}"><td class="pos">${s.rank}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '<div class="empty">Pas encore de buteurs.</div>';
       return;
     }
-    const COLS = [['pos', '#', 1, 'Classement officiel'], ['team', 'Équipe', 1, 'Ordre alphabétique'], ['j', 'J', -1, 'Matchs joués'], ['g', 'G', -1, 'Victoires'], ['n', 'N', -1, 'Nuls'], ['pp', 'P', 1, 'Moins de défaites'], ['bp', 'BP', -1, 'Meilleure attaque (buts pour)'], ['bc', 'BC', 1, 'Meilleure défense (buts contre)'], ['diff', '+/-', -1, 'Meilleure différence de buts'], ['pts', 'Pts', -1, 'Points']];
-    const val = (r, k) => (k === 'team' ? r.team.name || '' : k === 'pp' ? (r.p || 0) + (r.f || 0) : r[k] ?? 0);
-    const draw = () => {
-      const { k, dir } = stSort, rows = [...d.standings].sort((a, b) => { const x = val(a, k), y = val(b, k); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir || a.pos - b.pos; });
-      const th = COLS.map(([key, lab, def, tip]) => `<th data-s="${key}" title="${tip}" class="sortable${key === 'team' ? ' l' : ''}${k === key ? ' on' : ''}">${lab}${k === key ? (dir === 1 ? ' ▲' : ' ▼') : ''}</th>`).join('');
-      box.innerHTML = `<div class="card"><table class="t st"><tr>${th}</tr>${rows.map((r) => { const tid = `${id}:${r.team.id}`; const t = IDX.teams[tid]; const fav = isFavTeam(t); const mv = r.last && r.pos < r.last ? '<span class="up">▲</span>' : r.last && r.pos > r.last ? '<span class="dn">▼</span>' : ''; const hl = (key) => (k === key ? ' class="hl"' : ''); return `<tr class="${fav ? 'fav' : ''}"><td class="pos">${r.pos}</td><td class="team"><a href="#/equipe/${tid}">${esc(r.team.name)}</a> ${mv}</td><td${hl('j')}>${r.j}</td><td${hl('g')}>${r.g}</td><td${hl('n')}>${r.n}</td><td${hl('pp')}>${r.p + (r.f || 0)}</td><td${hl('bp')}>${r.bp ?? ''}</td><td${hl('bc')}>${r.bc ?? ''}</td><td${hl('diff')}>${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="pts">${r.pts}</td></tr>`; }).join('')}</table></div><p class="muted small">Touchez un en-tête pour trier (BP = attaque, BC = défense). Pts = points officiels FFH (pénalités déduites). ▲▼ = évolution depuis la journée précédente.</p>`;
-      box.querySelectorAll('th[data-s]').forEach((h) => (h.onclick = () => { const def = COLS.find((c) => c[0] === h.dataset.s)[2]; stSort = h.dataset.s === stSort.k ? { k: stSort.k, dir: -stSort.dir } : { k: h.dataset.s, dir: def }; draw(); }));
-    };
-    if (d.standings.length) draw(); else box.innerHTML = '<div class="empty">Classement non disponible pour cette poule.</div>';
+    drawStandings(box, d, id);
   } catch { box.innerHTML = '<div class="empty">Source FFH indisponible. Réessayez.</div>'; }
 };
 
@@ -274,14 +287,33 @@ views.joueur = async (id) => {
   } catch { app.innerHTML = '<div class="empty">Joueur introuvable. <a class="btn" href="#/joueurs">Rechercher</a></div>'; }
 };
 
-views.equipe = async (id) => {
+let eTab = 'matchs';
+views.equipe = async (id, tab) => {
   const t = IDX.teams[id]; if (!t) return notFound();
+  eTab = tab || 'matchs';
   const ms = D.matches.filter((m) => m.t1.id === id || m.t2.id === id).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const on = favs.teams.includes(id);
+  const compId = id.split(':')[0], pouleId = (ms.find((m) => m.poule) || {}).poule;
+  const TABS = [['matchs', 'Matchs'], ['classement', 'Classement'], ['joueurs', 'Joueurs']];
   app.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><h1 style="margin-bottom:0">${esc(t.name)}</h1><div class="muted small">${esc(teamMeta(t))}</div><div class="small">${[...t.comps].map((c) => `<a href="#/comp/${c}" style="color:var(--acc)">${esc(IDX.comp[c]?.name)}</a>`).join(' · ')}</div></div>${star(on, 'id="fav"')}</div>
   ${t.club && IDX.club[t.club] ? `<p><a class="btn" href="#/club/${t.club}">Voir le club ${esc(IDX.club[t.club].name)}</a></p>` : ''}
-  <p><a class="btn" href="#/buteurs" onclick="try{localStorage.setItem('f.scorer','${[...t.comps][0]}')}catch(e){}">⚽ Buteurs de la compétition</a></p><h2>Calendrier & résultats</h2><div class="card">${ms.map((m) => matchCard(m, { showComp: true })).join('')}</div>`;
-  $('#fav').onclick = () => { toggleTeam(id); views.equipe(id); };
+  <div class="tabsub">${TABS.map(([k, l]) => `<a data-t="${k}" class="${eTab === k ? 'on' : ''}" href="#/equipe/${id}/${k}">${l}</a>`).join('')}</div><div id="et"></div>`;
+  $('#fav').onclick = () => { toggleTeam(id); views.equipe(id, eTab); };
+  const box = $('#et');
+  if (eTab === 'classement') {
+    box.innerHTML = '<div class="loading">Chargement…</div>';
+    if (!pouleId) { box.innerHTML = '<div class="empty">Classement non disponible.</div>'; return; }
+    try { const d = await api('poule/' + pouleId); drawStandings(box, d, compId); box.insertAdjacentHTML('beforeend', `<p><a class="btn" href="#/comp/${compId}/${pouleId}">Toute la compétition</a></p>`); }
+    catch { box.innerHTML = '<div class="empty">Source FFH indisponible. Réessayez.</div>'; }
+  } else if (eTab === 'joueurs') {
+    box.innerHTML = '<div class="loading">Chargement…</div>';
+    try {
+      const d = await api(`players?team=${encodeURIComponent(id)}&limit=200`);
+      box.innerHTML = d.rows.length ? `<div class="card list">${d.rows.map((r) => `<a href="#/joueur/${r.id}"><div class="grow"><div><b>${esc(r.name)}</b></div><div class="stats">${statCells(r)}</div></div><span class="chev">›</span></a>`).join('')}</div>` : '<div class="empty">Pas encore de feuilles de match pour cette équipe.</div>';
+    } catch { box.innerHTML = '<div class="empty">Source indisponible.</div>'; }
+  } else {
+    box.innerHTML = `<div class="card">${ms.map((m) => matchCard(m, { showComp: true })).join('')}</div>`;
+  }
 };
 
 views.match = async (id) => {

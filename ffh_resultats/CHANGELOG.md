@@ -33,3 +33,6 @@
 
 ## 1.4.0
 - Classements d’équipes triables par colonne (meilleure attaque BP, meilleure défense BC, différence, victoires…).
+
+## 1.5.0
+- Équipes favorites : rang et points sur l’accueil, raccourcis Classement / Calendrier / Joueurs, fiche équipe à onglets (Matchs, Classement, Joueurs).

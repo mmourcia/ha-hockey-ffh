@@ -64,3 +64,5 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .stats{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;margin-top:2px}
 
 .t.st{font-size:13px}.t.st th.sortable{cursor:pointer;user-select:none;white-space:nowrap}.t.st th.on{color:var(--acc,#1a7f4b)}.t.st td.hl{background:var(--acc2);font-weight:600}.t.st td,.t.st th{padding-left:3px;padding-right:3px}
+
+.fteam .rank{display:block;font-weight:600;color:var(--acc)}.qlinks{display:flex;gap:6px;padding:0 12px 8px;flex-wrap:wrap}.qlinks a{flex:1;text-align:center;font-size:13px;padding:7px 6px;border-radius:10px;background:var(--acc2);white-space:nowrap}

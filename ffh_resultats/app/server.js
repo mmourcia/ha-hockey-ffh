@@ -198,7 +198,7 @@ const api = async (req, res, url) => {
     if (p[0] === 'players') {
       await ensure(season);
       const q = url.searchParams.get('q') || '', team = url.searchParams.get('team') || '', teams = (url.searchParams.get('teams') || '').split(',').filter(Boolean);
-      const r = searchPlayers(players(season), { q, team, teams: teams.length ? teams : null });
+      const r = searchPlayers(players(season), { q, team, teams: teams.length ? teams : null, limit: Math.min(+url.searchParams.get('limit') || 60, 300) });
       return send(req, res, 200, { ...r, coverage: coverage(season) }, { 'cache-control': 'public, max-age=60' });
     }
     if (p[0] === 'player' && p[1]) {
