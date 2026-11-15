@@ -1,0 +1,12 @@
+{
+  "name": "Hockey FFH – Résultats",
+  "short_name": "Hockey FFH",
+  "description": "Résultats, classements et actus de la Fédération Française de Hockey",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b2a4a",
+  "theme_color": "#0b2a4a",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

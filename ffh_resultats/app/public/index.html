@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hockey FFH – Résultats</title>
+<meta name="description" content="Résultats, classements, calendriers et actualités du hockey français, sans choisir d'équipe.">
+<meta name="theme-color" content="#0b2a4a">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/"><img src="/icon.svg" alt="" width="28" height="28"><span>Hockey <b>FFH</b></span></a>
+  <div class="top-actions">
+    <a class="icon-btn" href="#/search" aria-label="Rechercher">🔍</a>
+    <button class="icon-btn" id="bell" aria-label="Notifications de score" title="Alertes de score">🔔</button>
+  </div>
+</header>
+<div id="status" class="status" hidden></div>
+<main id="app" aria-live="polite"><div class="loading">Chargement…</div></main>
+<nav class="tabs" aria-label="Navigation">
+  <a href="#/" data-tab="home"><i>🏠</i>Accueil</a>
+  <a href="#/matchs" data-tab="matchs"><i>📅</i>Matchs</a>
+  <a href="#/comps" data-tab="comps"><i>🏆</i>Classements</a>
+  <a href="#/clubs" data-tab="clubs"><i>⭐</i>Clubs</a>
+  <a href="#/actus" data-tab="actus"><i>📰</i>Actus</a>
+</nav>
+<div id="toast" class="toast" hidden></div>
+<script src="/app.js" type="module"></script>
+</body>
+</html>

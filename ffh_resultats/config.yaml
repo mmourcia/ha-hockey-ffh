@@ -1,0 +1,19 @@
+name: "Hockey FFH Résultats"
+version: "1.0.0"
+slug: ffh_resultats
+url: "https://github.com/OWNER/ha-hockey-ffh"
+description: "PWA de résultats de la Fédération Française de Hockey (API FFH, Web Push)"
+arch: [amd64, aarch64, armv7]
+startup: application
+boot: auto
+init: false
+ports:
+  8080/tcp: 8099
+ports_description:
+  8080/tcp: "Interface web (proxifiable par Tailscale Funnel)"
+options:
+  vapid_subject: "mailto:contact@example.org"
+  refresh_minutes: 5
+schema:
+  vapid_subject: str
+  refresh_minutes: int(1,60)
