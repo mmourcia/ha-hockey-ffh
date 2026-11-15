@@ -93,7 +93,7 @@ export function parseSheet(html = '') {
   const inj = [...h.matchAll(/Blessures\s*:\s*<\/strong>([\s\S]*?)<div class="cl2">/g)].map((m) => stripTags(m[1]));
   out.injuries = [inj[0] || '', inj[1] || ''];
   for (const m of h.matchAll(/<strong>(Arbitre \d|Délégué \d|Capitaine[^<]*)<\/strong><\/p>\s*<p>([\s\S]*?)<\/p>/g)) {
-    const v = stripTags(m[2]); if (v) out.officials.push({ role: stripTags(m[1]), name: v.replace(/^\d+\s*-\s*/, '') });
+    const v = stripTags(m[2]); if (v) out.officials.push({ role: stripTags(m[1]), name: v.replace(/^\d+\s*-\s*/, ''), licence: (v.match(/^(\d+)\s*-/) || [])[1] || null });
   }
   const info = (label) => (h.match(new RegExp(label + '\\s*:?\\s*</strong>\\s*([^<]*)')) || [])[1]?.trim() || null;
   out.info = { date: info('Date'), time: info('Horaire'), field: info('Terrain') };

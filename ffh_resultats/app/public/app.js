@@ -229,7 +229,7 @@ views.equipes = async () => {
 };
 views.clubs = views.equipes;
 
-const compTabs = (on) => `<div class="tabsub">${[['comps', 'Classements'], ['buteurs', '⚽ Buteurs'], ['joueurs', '👤 Joueurs']].map(([h, l]) => `<a href="#/${h}" class="${on === h ? 'on' : ''}">${l}</a>`).join('')}</div>`;
+const compTabs = (on) => `<div class="tabsub">${[['comps', 'Classements'], ['buteurs', 'Buteurs'], ['joueurs', 'Joueurs'], ['arbitres', 'Arbitres']].map(([h, l]) => `<a href="#/${h}" class="${on === h ? 'on' : ''}">${l}</a>`).join('')}</div>`;
 const favComps = () => [...new Set(favs.teams.map((id) => id.split(':')[0]))].filter((c) => IDX.comp[c]);
 let sSel = '', sTouched = false;
 views.buteurs = async () => {
@@ -249,6 +249,43 @@ views.buteurs = async () => {
   $('#sc').onchange = (e) => pick(e.target.value);
   app.querySelectorAll('[data-c]').forEach((b) => (b.onclick = () => pick(b.dataset.c)));
   load();
+};
+
+// ---------- Arbitres ----------
+let rState = { q: '', sort: 'matches' };
+const refStats = (r) => `<span title="Matchs arbitrés"><b>${r.matches}</b> match${r.matches > 1 ? 's' : ''}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Cartons par match">${r.perMatch} / match</span>`;
+views.arbitres = async () => {
+  const SORTS = [['matches', 'Matchs'], ['cards', 'Cartons'], ['perMatch', 'Cartons / match'], ['yellow', 'Jaunes'], ['red', 'Rouges']];
+  app.innerHTML = `<h1>Compétitions</h1>${compTabs('arbitres')}
+  <input class="search" id="rq" type="search" placeholder="Nom d’un arbitre…" autocomplete="off" value="${esc(rState.q)}">
+  <div class="chips">${SORTS.map(([k, l]) => `<button class="chip ${rState.sort === k ? 'on' : ''}" data-s="${k}">${l}</button>`).join('')}</div>
+  <div id="rt"></div><div id="rl"><div class="loading">Chargement…</div></div><p class="muted small" id="rnote"></p>`;
+  let timer, seq = 0;
+  const run = async () => {
+    const my = ++seq;
+    try {
+      const d = await api(`referees?q=${encodeURIComponent(rState.q.trim())}&sort=${rState.sort}`);
+      if (my !== seq) return;
+      const t = d.totals;
+      $('#rt').innerHTML = `<div class="tiles"><div><b>${t.matches}</b><span>matchs</span></div><div><b>${t.referees}</b><span>arbitres</span></div><div><b>${t.cards}</b><span>cartons</span></div><div><b>${t.perMatch}</b><span>cartons / match</span></div></div><div class="stats small" style="margin:6px 0 10px"><span>🟩 ${t.green}</span><span>🟨 ${t.yellow}</span><span>🟥 ${t.red}</span></div>`;
+      $('#rl').innerHTML = d.rows.length ? `<div class="card list">${d.rows.map((r) => `<a href="#/arbitre/${r.id}"><div class="grow"><div><b>${esc(r.name)}</b></div><div class="stats">${refStats(r)}</div></div><span class="chev">›</span></a>`).join('')}</div>` : `<div class="empty">${d.coverage.withRefs < d.coverage.total ? 'Collecte des feuilles en cours, revenez dans quelques minutes.' : 'Aucun arbitre trouvé.'}</div>`;
+      $('#rnote').textContent = `Un match arbitré à deux compte pour chaque arbitre : les cartons du match sont attribués à chacun. Données issues de ${d.coverage.withRefs} feuilles de match sur ${d.coverage.total}.${d.coverage.includeYouth ? '' : ' Catégories de jeunes exclues.'}`;
+    } catch { $('#rl').innerHTML = '<div class="empty">Source indisponible.</div>'; }
+  };
+  $('#rq').oninput = (e) => { rState.q = e.target.value; clearTimeout(timer); timer = setTimeout(run, 250); };
+  app.querySelectorAll('[data-s]').forEach((b) => (b.onclick = () => { rState.sort = b.dataset.s; views.arbitres(); }));
+  run();
+};
+views.arbitre = async (id) => {
+  app.innerHTML = '<div class="loading">Chargement…</div>';
+  try {
+    const r = await api('referee/' + id);
+    app.innerHTML = `<h1 style="margin-bottom:2px">${esc(r.name)}</h1><div class="muted small" style="margin-bottom:8px">Arbitre</div>
+    <div class="tiles"><div><b>${r.matches}</b><span>matchs</span></div><div><b>${r.cards}</b><span>cartons</span></div><div><b>${r.perMatch}</b><span>cartons / match</span></div><div><b>${r.goalsPerMatch}</b><span>buts / match</span></div></div>
+    <div class="stats small" style="margin:6px 0 10px"><span>🟩 ${r.green}</span><span>🟨 ${r.yellow}</span><span>🟥 ${r.red}</span></div>
+    <h2>Par compétition</h2>${r.comps.map((c) => `<div class="card pad" style="margin-bottom:8px"><a href="#/comp/${c.comp.id}"><b>${esc(c.comp.name)}</b></a><div class="stats"><span><b>${c.matches}</b> match${c.matches > 1 ? 's' : ''}</span><span>🟩 ${c.green}</span><span>🟨 ${c.yellow}</span><span>🟥 ${c.red}</span></div></div>`).join('')}
+    <h2>Match par match</h2><div class="card">${r.games.map((g) => { const m = D.matches.find((x) => x.id === g.m); return m ? `<div>${matchCard(m, { showComp: true })}<div class="stats small" style="padding:0 12px 8px 74px"><span>${g.c.some(Boolean) ? `${'🟩'.repeat(g.c[0])}${'🟨'.repeat(g.c[1])}${'🟥'.repeat(g.c[2])}` : '<span class="muted">Aucun carton</span>'}</span>${g.with.length ? `<span class="muted">avec ${esc(g.with.join(', '))}</span>` : ''}</div></div>` : ''; }).join('')}</div>`;
+  } catch { app.innerHTML = '<div class="empty">Arbitre introuvable. <a class="btn" href="#/arbitres">Rechercher</a></div>'; }
 };
 
 // ---------- Joueurs ----------
@@ -344,7 +381,7 @@ views.match = async (id) => {
     const cd = s.cards;
     $('#sheet').innerHTML = `<h2>Feuille de match</h2><div class="card"><div class="cols">${col(0)}${col(1)}</div></div>
     ${cd.green + cd.yellow + cd.red ? `<p class="small muted center">Cartons : ${cd.green ? `<span class="cd green"></span> ×${cd.green} ` : ''}${cd.yellow ? `<span class="cd yellow"></span> ×${cd.yellow} ` : ''}${cd.red ? `<span class="cd red"></span> ×${cd.red}` : ''}</p>` : ''}
-    ${s.officials.length ? `<h2>Officiels</h2><div class="card list">${s.officials.map((o) => `<div class="row"><div class="grow"><div>${esc(o.name)}</div><div class="muted small">${esc(o.role)}</div></div></div>`).join('')}</div>` : ''}`;
+    ${s.officials.length ? `<h2>Officiels</h2><div class="card list">${s.officials.map((o) => `<div class="row"><div class="grow"><div>${o.id ? `<a href="#/arbitre/${o.id}">${esc(o.name)}</a>` : esc(o.name)}</div><div class="muted small">${esc(o.role)}</div></div></div>`).join('')}</div>` : ''}`;
   } catch { $('#sheet').innerHTML = '<div class="empty">Feuille indisponible pour le moment.</div>'; }
 };
 
@@ -373,9 +410,9 @@ const notFound = () => (app.innerHTML = '<div class="empty">Page introuvable. <a
 // ---------- routeur ----------
 async function route(keep) {
   const [, name = '', a, b] = location.hash.replace(/^#/, '').split('/');
-  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs', joueurs: 'joueurs', joueur: 'joueur' }[name] || 'home';
-  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', joueurs: 'comps', joueur: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', actus: 'actus', search: 'home' }[v];
-  const root = ['home', 'matchs', 'comps', 'equipes', 'actus', 'buteurs', 'joueurs'].includes(v);
+  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs', joueurs: 'joueurs', joueur: 'joueur', arbitres: 'arbitres', arbitre: 'arbitre' }[name] || 'home';
+  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', joueurs: 'comps', joueur: 'comps', arbitres: 'comps', arbitre: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', actus: 'actus', search: 'home' }[v];
+  const root = ['home', 'matchs', 'comps', 'equipes', 'actus', 'buteurs', 'joueurs', 'arbitres'].includes(v);
   $('#back').hidden = root;
   document.querySelectorAll('.tabs a').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
   if (!D) { app.innerHTML = '<div class="loading">Chargement des résultats…</div>'; await load(true); }

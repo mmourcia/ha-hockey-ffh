@@ -42,3 +42,7 @@
 
 ## 1.5.2
 - Accueil : bloc équipe favorite refait (en-tête, boutons Classement/Calendrier/Joueurs en grille, matchs) pour éviter tout chevauchement.
+
+## 1.6.0
+- Nouvelle section Arbitres (Classements → Arbitres) : matchs arbitrés, cartons verts/jaunes/rouges, cartons par match, fiche détaillée par arbitre. Pour un match arbitré à deux, les cartons comptent pour chaque arbitre. Les arbitres de la feuille de match sont cliquables.
+- Au premier démarrage, les feuilles déjà stockées sont relues une fois pour récupérer les arbitres.

@@ -78,3 +78,5 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .fteam .fh .rank{margin-top:2px}
 .qlinks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card)}
 .qlinks a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;min-height:44px;padding:6px 2px;border:1px solid var(--line);background:var(--card);font-size:12px;font-weight:600;line-height:1.15;text-align:center;overflow-wrap:anywhere}
+
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.tiles div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center}.tiles b{display:block;font-size:20px}.tiles span{font-size:11px;color:var(--mute)}

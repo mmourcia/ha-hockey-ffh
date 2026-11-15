@@ -7,6 +7,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createPush } from './push.js';
 import { norm } from './text.js';
+import { aggregateReferees, listReferees, refereeDetail, refId, cleanRefName } from './referees.js';
 import { compactSheet, aggregate, search as searchPlayers, isYouthComp } from './players.js';
 import { normMatch, normComp, normStandings, normScorers, parseSheet, parseNewsHtml } from './lib.js';
 
@@ -117,7 +118,7 @@ const compsMap = (idx) => Object.fromEntries(idx.comps.map((c) => [c.id, c]));
 async function crawlSheets(season) {
   const idx = store[season]; if (!idx || crawling) return;
   const cm = compsMap(idx);
-  const todo = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && !sheets[m.id] && cm[m.comp] && (INCLUDE_YOUTH || !isYouthComp(cm[m.comp].name)));
+  const todo = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && (!sheets[m.id] || sheets[m.id].o === undefined) && cm[m.comp] && (INCLUDE_YOUTH || !isYouthComp(cm[m.comp].name)));
   if (!todo.length) return;
   crawling = true; let n = 0;
   try {
@@ -130,12 +131,18 @@ async function crawlSheets(season) {
     console.log(`feuilles: ${n} nouvelle(s), ${Object.keys(sheets).length} stockée(s)`);
   } catch (e) { console.warn('crawl', e.message); } finally { crawling = false; }
 }
+let refsIdx = { key: '', val: null };
+function referees(season) {
+  const idx = store[season]; const key = `${idx.version}:${Object.keys(sheets).length}:${INCLUDE_YOUTH}:${Object.values(sheets).filter((x) => x.o !== undefined).length}`;
+  if (refsIdx.key !== key) refsIdx = { key, val: aggregateReferees(idx.matches, sheets, compsMap(idx), { includeYouth: INCLUDE_YOUTH }) };
+  return refsIdx.val;
+}
 function players(season) {
   const idx = store[season]; const key = `${idx.version}:${Object.keys(sheets).length}:${INCLUDE_YOUTH}`;
   if (playersIdx.key !== key) playersIdx = { key, map: aggregate(idx.matches, sheets, compsMap(idx), { includeYouth: INCLUDE_YOUTH }) };
   return playersIdx.map;
 }
-const coverage = (season) => { const idx = store[season]; const cm = compsMap(idx); const elig = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && cm[m.comp] && (INCLUDE_YOUTH || !isYouthComp(cm[m.comp].name))); return { sheets: elig.filter((m) => sheets[m.id]).length, total: elig.length, includeYouth: INCLUDE_YOUTH }; };
+const coverage = (season) => { const idx = store[season]; const cm = compsMap(idx); const elig = idx.matches.filter((m) => m.status === 'played' && m.sheet && !m.bye && cm[m.comp] && (INCLUDE_YOUTH || !isYouthComp(cm[m.comp].name))); return { sheets: elig.filter((m) => sheets[m.id]).length, withRefs: elig.filter((m) => sheets[m.id] && sheets[m.id].o !== undefined).length, total: elig.length, includeYouth: INCLUDE_YOUTH }; };
 
 // ---------- news ----------
 const NEWS_PAGES = ['/', '/actualites/actualite-federale.html', '/actualites/actualites-championnats.html', '/actualites/coup-de-crosse.html'];
@@ -193,7 +200,22 @@ const api = async (req, res, url) => {
     if (p[0] === 'match' && p[1]) {
       const r = await cached(`fm${season}${p[1]}`, 5 * 60e3, () => up('Championnats/FeuilleDeMatchHTML', { SaisonAnnee: season, RencId: p[1] }));
       if (!r?.RenduHTML) return send(req, res, 404, { error: 'Feuille de match indisponible' });
-      return send(req, res, 200, parseSheet(r.RenduHTML), { 'cache-control': 'public, max-age=120' });
+      const sh = parseSheet(r.RenduHTML);
+      sh.officials = sh.officials.map((o) => {
+        const ref = /^arbitre/i.test(o.role);
+        return { role: o.role, name: ref ? cleanRefName(o.name) : o.name, id: ref ? refId({ l: o.licence, n: o.name }) : null };
+      });
+      return send(req, res, 200, sh, { 'cache-control': 'public, max-age=120' });
+    }
+    if (p[0] === 'referees') {
+      await ensure(season);
+      const r = listReferees(referees(season), { q: url.searchParams.get('q') || '', sort: url.searchParams.get('sort') || 'matches' });
+      return send(req, res, 200, { ...r, coverage: coverage(season) }, { 'cache-control': 'public, max-age=60' });
+    }
+    if (p[0] === 'referee' && p[1]) {
+      await ensure(season);
+      const d = refereeDetail(referees(season), p[1]);
+      return d ? send(req, res, 200, d, { 'cache-control': 'public, max-age=60' }) : send(req, res, 404, { error: 'Arbitre introuvable' });
     }
     if (p[0] === 'players') {
       await ensure(season);

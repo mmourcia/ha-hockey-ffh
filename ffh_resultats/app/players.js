@@ -11,6 +11,7 @@ export const pid = (licence) => crypto.createHash('sha1').update('ffh:' + licenc
 export function compactSheet(s) {
   return {
     p: s.players.map((side) => side.map((x) => ({ l: x.licence, s: x.shirt, n: x.name, g: x.gk ? 1 : 0, c: [x.cd?.green || 0, x.cd?.yellow || 0, x.cd?.red || 0] }))),
+    o: (s.officials || []).filter((x) => /^arbitre/i.test(x.role)).map((x) => ({ l: x.licence, n: x.name })),
     sc: s.scorers.map((side) => side.map((g) => ({ no: g.no, n: g.n }))),
   };
 }
