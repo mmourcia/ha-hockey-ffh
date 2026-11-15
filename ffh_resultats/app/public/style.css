@@ -66,3 +66,7 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .t.st{font-size:13px}.t.st th.sortable{cursor:pointer;user-select:none;white-space:nowrap}.t.st th.on{color:var(--acc,#1a7f4b)}.t.st td.hl{background:var(--acc2);font-weight:600}.t.st td,.t.st th{padding-left:3px;padding-right:3px}
 
 .fteam .rank{display:block;font-weight:600;color:var(--acc)}.qlinks{display:flex;gap:6px;padding:0 12px 8px;flex-wrap:wrap}.qlinks a{flex:1;text-align:center;font-size:13px;padding:7px 6px;border-radius:10px;background:var(--acc2);white-space:nowrap}
+
+.staff{display:flex;flex-direction:column;padding:3px 0;font-size:13px;min-width:0}.staff .nm2{overflow-wrap:anywhere}
+.qlinks a{white-space:normal;min-width:0;line-height:1.2;padding:8px 4px}
+.card:has(table.st){overflow-x:auto}.t.st td.team{min-width:96px}

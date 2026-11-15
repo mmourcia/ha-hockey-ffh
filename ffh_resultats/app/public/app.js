@@ -253,7 +253,7 @@ views.buteurs = async () => {
 
 // ---------- Joueurs ----------
 let jState = { q: '', mine: true };
-const statCells = (r) => `<span title="Buts">⚽ <b>${r.goals}</b></span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs">${r.matches} m.</span>`;
+const statCells = (r) => `<span title="Buts">⚽ <b>${r.goals}</b></span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs joués">${r.matches} match${r.matches > 1 ? 's' : ''}</span>`;
 views.joueurs = async () => {
   const mineTeams = favs.teams;
   app.innerHTML = `<h1>Compétitions</h1>${compTabs('joueurs')}
@@ -287,6 +287,14 @@ views.joueur = async (id) => {
   } catch { app.innerHTML = '<div class="empty">Joueur introuvable. <a class="btn" href="#/joueurs">Rechercher</a></div>'; }
 };
 
+views.club = async (code) => {
+  const c = IDX.club[code]; if (!c) return notFound();
+  const teams = Object.values(IDX.teams).filter((t) => t.club === code).sort((x, y) => (teamComps(x)[0]?.order ?? 99) - (teamComps(y)[0]?.order ?? 99) || x.name.localeCompare(y.name));
+  app.innerHTML = `<h1>${esc(c.name)}</h1><div class="muted small" style="margin:-8px 0 10px">${esc(c.city || '')}</div>
+  ${teams.length ? `<div class="card">${teams.map(teamRow).join('')}</div>` : '<div class="empty">Aucune équipe engagée cette saison.</div>'}`;
+  app.querySelectorAll('[data-team]').forEach((b) => (b.onclick = () => { toggleTeam(b.dataset.team); views.club(code); }));
+};
+
 let eTab = 'matchs';
 views.equipe = async (id, tab) => {
   const t = IDX.teams[id]; if (!t) return notFound();
@@ -316,6 +324,7 @@ views.equipe = async (id, tab) => {
   }
 };
 
+const isStaff = (p) => !p.gk && !/^\d+$/.test(String(p.shirt || '').trim());
 views.match = async (id) => {
   const m = D.matches.find((x) => x.id === id); if (!m) return notFound();
   const c = IDX.comp[m.comp];
@@ -329,7 +338,7 @@ views.match = async (id) => {
   if (!m.sheet) return;
   try {
     const s = await api('match/' + id);
-    const col = (i) => `<div><div class="small muted" style="margin-bottom:4px"><b>${esc(m['t' + (i + 1)].name)}</b></div>${s.scorers[i].length ? `<div class="pl"><span>⚽</span><span>${s.scorers[i].map((g) => esc(g.name || 'N°' + g.no) + (g.n > 1 ? ' ×' + g.n : '')).join(', ')}</span></div>` : ''}${s.players[i].map((p) => `<div class="pl"><span class="no">${p.gk ? 'GK' : esc(p.shirt)}</span><span class="nm">${esc(p.name)}</span>${p.card ? `<span class="cd ${p.card}" title="Carton"></span>` : ''}</div>`).join('')}${s.injuries[i] ? `<div class="small muted" style="margin-top:6px">🩹 ${esc(s.injuries[i])}</div>` : ''}</div>`;
+    const col = (i) => `<div><div class="small muted" style="margin-bottom:4px"><b>${esc(m['t' + (i + 1)].name)}</b></div>${s.scorers[i].length ? `<div class="pl"><span>⚽</span><span>${s.scorers[i].map((g) => esc(g.name || 'N°' + g.no) + (g.n > 1 ? ' ×' + g.n : '')).join(', ')}</span></div>` : ''}${s.players[i].filter((p) => !isStaff(p)).map((p) => `<div class="pl"><span class="no">${p.gk ? 'GK' : esc(p.shirt)}</span><span class="nm">${esc(p.name)}</span>${p.card ? `<span class="cd ${p.card}" title="Carton"></span>` : ''}</div>`).join('')}${s.players[i].some(isStaff) ? `<div class="small muted" style="margin-top:8px"><b>Encadrement</b></div>${s.players[i].filter(isStaff).map((p) => `<div class="staff"><span class="nm2">${esc(p.name)}</span><span class="muted small">${esc(p.shirt)}</span></div>`).join('')}` : ''}${s.injuries[i] ? `<div class="small muted" style="margin-top:6px">🩹 ${esc(s.injuries[i])}</div>` : ''}</div>`;
     const gl = (i) => s.scorers[i].map((g) => `${esc(g.name || 'N°' + g.no)}${g.n > 1 ? ' ×' + g.n : ''}`).join(', ');
     if (s.scorers[0].length + s.scorers[1].length) $('#goals').innerHTML = `<div class="cols" style="text-align:left"><div>⚽ ${gl(0) || '—'}</div><div>⚽ ${gl(1) || '—'}</div></div>`;
     const cd = s.cards;

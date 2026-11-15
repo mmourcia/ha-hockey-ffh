@@ -36,3 +36,6 @@
 
 ## 1.5.0
 - Équipes favorites : rang et points sur l’accueil, raccourcis Classement / Calendrier / Joueurs, fiche équipe à onglets (Matchs, Classement, Joueurs).
+
+## 1.5.1
+- Correctif : page Club (erreur), boutons de raccourcis qui se chevauchent, encadrement (chef d’équipe, entraîneur) recouvert sur les feuilles de match, « 1 m. » remplacé par « 1 match ».
