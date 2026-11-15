@@ -1,7 +1,7 @@
 name: "Hockey FFH Résultats"
 version: "1.0.0"
 slug: ffh_resultats
-url: "https://github.com/OWNER/ha-hockey-ffh"
+url: "https://github.com/mmourcia/ha-hockey-ffh"
 description: "PWA de résultats de la Fédération Française de Hockey (API FFH, Web Push)"
 arch: [amd64, aarch64, armv7]
 startup: application
