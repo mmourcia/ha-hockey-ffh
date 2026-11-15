@@ -80,25 +80,31 @@ const star = (on, attr) => `<button class="star ${on ? 'on' : ''}" ${attr} aria-
 const views = {};
 
 views.home = async () => {
-  const mine = hasFavs() ? D.matches.filter((m) => !m.bye && isFavMatch(m)) : [];
-  const now = Date.now();
   const t = (m) => new Date((m.date || '').replace(' ', 'T')).getTime();
-  const last = mine.filter((m) => m.status === 'played').sort((a, b) => t(b) - t(a)).slice(0, 5);
-  const next = mine.filter((m) => m.status === 'upcoming' && t(m) > now - 2 * 3600e3).sort((a, b) => t(a) - t(b)).slice(0, 5);
+  const now = Date.now();
   let h = '';
-  if (!hasFavs()) h += `<div class="hero"><h1>Tous les résultats du hockey français</h1><p>Sans rien choisir : gazon et salle, toutes divisions. Choisissez vos équipes précises (ex. Élite Hommes, U13 Filles) pour un fil personnalisé.</p><a class="btn primary" href="#/equipes">⭐ Choisir mes équipes</a></div>`;
+  if (!hasFavs()) h += `<div class="hero"><h1>Tous les résultats du hockey français</h1><p>Gazon et salle, toutes divisions, sans rien choisir. Suivez vos équipes précises (ex. Élite Hommes, U13 Filles) pour un fil perso.</p><a class="btn primary" href="#/equipes">⭐ Choisir mes équipes</a></div>`;
   else {
-    h += `<h2>Mes équipes<a href="#/equipes">Gérer</a></h2>`;
-    h += next.length ? `<div class="card">${next.map((m) => matchCard(m, { showComp: true })).join('')}</div>` : '<div class="card pad muted">Aucun match à venir programmé.</div>';
-    if (last.length) h += `<h2>Derniers résultats</h2><div class="card">${last.map((m) => matchCard(m, { showComp: true })).join('')}</div>`;
+    h += `<h2>Mes équipes<a href="#/equipes">Gérer</a></h2><div class="card">`;
+    h += favs.teams.map((id) => {
+      const tm = IDX.teams[id]; if (!tm) return '';
+      const ms = D.matches.filter((m) => !m.bye && (m.t1.id === id || m.t2.id === id));
+      const next = ms.filter((m) => m.status === 'upcoming' && t(m) > now - 2 * 3600e3).sort((a, b) => t(a) - t(b))[0];
+      const last = ms.filter((m) => m.status === 'played').sort((a, b) => t(b) - t(a))[0];
+      return `<div class="fteam"><a class="fh" href="#/equipe/${id}"><b>${esc(tm.name)}</b><span class="muted small">${esc(teamLabel(tm))} · ${esc(teamMeta(tm))}</span></a>${last ? matchCard(last) : ''}${next ? matchCard(next) : ''}${!last && !next ? '<div class="pad muted small">Aucun match programmé.</div>' : ''}</div>`;
+    }).join('');
+    h += '</div>';
   }
   const tk = todayKey();
   const keys = Object.keys(IDX.byDay).sort();
   const dk = IDX.byDay[tk] ? tk : keys.find((k) => k > tk) || keys[keys.length - 1];
-  if (dk) h += `<h2>${esc(dayLong(dk))}<a href="#/matchs/${dk}">Tout voir</a></h2>${groupedMatches(IDX.byDay[dk].slice(0, 40))}`;
+  if (dk) {
+    const day = IDX.byDay[dk].slice().sort((a, b) => (IDX.comp[a.comp]?.order ?? 99) - (IDX.comp[b.comp]?.order ?? 99));
+    h += `<h2>${esc(dayLong(dk))}<a href="#/matchs/${dk}">Les ${day.length} matchs</a></h2>${groupedMatches(day.slice(0, 6))}`;
+  }
   h += `<h2>À la une<a href="#/actus">Toutes les actus</a></h2><div class="card" id="home-news"><div class="loading">…</div></div>`;
   app.innerHTML = h;
-  api('news').then((n) => { $('#home-news').innerHTML = n.slice(0, 3).map((x, i) => newsCard(x, i === 0)).join(''); }).catch(() => { $('#home-news').innerHTML = '<div class="pad muted">Actualités indisponibles.</div>'; });
+  api('news').then((n) => { $('#home-news').innerHTML = n.slice(0, 2).map((x) => newsCard(x)).join(''); }).catch(() => { $('#home-news').innerHTML = '<div class="pad muted">Actualités indisponibles.</div>'; });
 };
 
 let mState = { disc: store.get('f.disc', ''), sexe: store.get('f.sexe', ''), fav: false, q: '' };
@@ -131,7 +137,7 @@ views.matchs = async (day) => {
 views.comps = async () => {
   const by = {};
   D.comps.forEach((c) => ((by[c.disc] ||= {})[c.sexe] ||= []).push(c));
-  let h = '<h1>Compétitions</h1>';
+  let h = '<h1>Compétitions</h1><div class="tabsub"><button class="on">Classements</button><button onclick="location.hash=\'#/buteurs\'">⚽ Buteurs</button></div>';
   for (const disc of ['GAZON', 'SALLE', 'DEVELOP']) {
     if (!by[disc]) continue;
     for (const sx of ['M', 'F', 'FM']) {
@@ -201,6 +207,20 @@ views.equipes = async () => {
 };
 views.clubs = views.equipes;
 
+let sSel = store.get('f.scorer', '');
+views.buteurs = async () => {
+  const sorted = D.comps.slice().sort((a, b) => (a.disc === b.disc ? 0 : a.disc === 'GAZON' ? -1 : 1) || a.order - b.order || a.name.localeCompare(b.name));
+  if (!IDX.comp[sSel]) sSel = (sorted.find((c) => /elite hommes/i.test(c.name)) || sorted[0]).id;
+  app.innerHTML = `<h1>Meilleurs buteurs</h1><select class="search" id="sc">${sorted.map((c) => `<option value="${c.id}" ${c.id === sSel ? 'selected' : ''}>${esc(c.name)} — ${esc(discLabel(c.disc))} ${esc(sexeLabel(c.sexe))}</option>`).join('')}</select><div id="sl"><div class="loading">Chargement…</div></div>`;
+  const load = async () => {
+    const c = IDX.comp[sSel]; store.set('f.scorer', sSel);
+    const lists = await Promise.all(c.poules.map((p) => api('poule/' + p.id).then((d) => ({ p, d })).catch(() => null)));
+    $('#sl').innerHTML = lists.filter(Boolean).map(({ p, d }) => d.scorers.length ? `${c.poules.length > 1 ? `<h2>${esc(p.label)}</h2>` : ''}<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th>🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr><td class="pos">${s.rank}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '').join('') || '<div class="empty">Pas encore de buteurs pour cette compétition.</div>';
+  };
+  $('#sc').onchange = (e) => { sSel = e.target.value; $('#sl').innerHTML = '<div class="loading">Chargement…</div>'; load(); };
+  load();
+};
+
 views.club = async (code) => {
   const c = IDX.club[code]; if (!c) return notFound();
   const teams = Object.values(IDX.teams).filter((t) => t.club === code).sort((a, b) => teamMeta(a).localeCompare(teamMeta(b)) || a.name.localeCompare(b.name));
@@ -219,7 +239,7 @@ views.equipe = async (id) => {
   const on = favs.teams.includes(id);
   app.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><h1 style="margin-bottom:0">${esc(t.name)}</h1><div class="muted small">${esc(teamMeta(t))}</div><div class="small">${[...t.comps].map((c) => `<a href="#/comp/${c}" style="color:var(--acc)">${esc(IDX.comp[c]?.name)}</a>`).join(' · ')}</div></div>${star(on, 'id="fav"')}</div>
   ${t.club && IDX.club[t.club] ? `<p><a class="btn" href="#/club/${t.club}">Voir le club ${esc(IDX.club[t.club].name)}</a></p>` : ''}
-  <h2>Calendrier & résultats</h2><div class="card">${ms.map((m) => matchCard(m, { showComp: true })).join('')}</div>`;
+  <p><a class="btn" href="#/buteurs" onclick="try{localStorage.setItem('f.scorer','${[...t.comps][0]}')}catch(e){}">⚽ Buteurs de la compétition</a></p><h2>Calendrier & résultats</h2><div class="card">${ms.map((m) => matchCard(m, { showComp: true })).join('')}</div>`;
   $('#fav').onclick = () => { toggleTeam(id); views.equipe(id); };
 };
 
@@ -230,13 +250,15 @@ views.match = async (id) => {
   app.innerHTML = `<div class="card"><div class="sheet-h"><a class="muted small" href="#/comp/${m.comp}">${esc(c?.name || '')}${m.round ? ' · ' + esc(m.round) : ''}</a>
   <div class="vs"><a class="tn" href="#/equipe/${m.t1.id}">${esc(m.t1.name)}</a><div class="big">${played ? `${m.s1} - ${m.s2}` : m.status === 'forfeit' ? 'Forfait' : 'vs'}</div><a class="tn" href="#/equipe/${m.t2.id}">${esc(m.t2.name)}</a></div>
   <div class="kv"><span>📅 ${m.date ? esc(dayLong(m.date.slice(0, 10))) : 'Date à définir'}${hhmm(m) ? ' · ' + hhmm(m) : ''}</span>${m.venue ? `<span>📍 ${esc(m.venue)}${m.city ? ', ' + esc(m.city) : ''}</span>` : ''}${m.reason ? `<span class="tag warn">${esc(m.reason)}</span>` : ''}</div>
-  <p style="margin:12px 0 0"><button class="btn" id="share">Partager</button> ${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="https://www.openstreetmap.org/search?query=${encodeURIComponent(m.venue + ' ' + (m.city || ''))}">Itinéraire</a>` : ''}</p></div></div>
+  <div id="goals" class="small" style="margin-top:8px"></div><p style="margin:12px 0 0"><button class="btn" id="share">Partager</button> ${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="https://www.openstreetmap.org/search?query=${encodeURIComponent(m.venue + ' ' + (m.city || ''))}">Itinéraire</a>` : ''}</p></div></div>
   <div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
   $('#share').onclick = async () => { const data = { title: `${m.t1.name} – ${m.t2.name}`, text: played ? `${m.t1.name} ${m.s1}-${m.s2} ${m.t2.name}` : `${m.t1.name} – ${m.t2.name}`, url: location.href }; try { navigator.share ? await navigator.share(data) : (await navigator.clipboard.writeText(location.href), toast('Lien copié')); } catch {} };
   if (!m.sheet) return;
   try {
     const s = await api('match/' + id);
-    const col = (i) => `<div><div class="small muted" style="margin-bottom:4px"><b>${esc(m['t' + (i + 1)].name)}</b></div>${s.goals[i] ? `<div class="pl"><span>⚽</span><span>${esc(s.goals[i])}</span></div>` : ''}${s.players[i].map((p) => `<div class="pl"><span class="no">${p.gk ? 'GK' : esc(p.shirt)}</span><span class="nm">${esc(p.name)}</span>${p.card ? `<span class="cd ${p.card}" title="Carton"></span>` : ''}</div>`).join('')}${s.injuries[i] ? `<div class="small muted" style="margin-top:6px">🩹 ${esc(s.injuries[i])}</div>` : ''}</div>`;
+    const col = (i) => `<div><div class="small muted" style="margin-bottom:4px"><b>${esc(m['t' + (i + 1)].name)}</b></div>${s.scorers[i].length ? `<div class="pl"><span>⚽</span><span>${s.scorers[i].map((g) => esc(g.name || 'N°' + g.no) + (g.n > 1 ? ' ×' + g.n : '')).join(', ')}</span></div>` : ''}${s.players[i].map((p) => `<div class="pl"><span class="no">${p.gk ? 'GK' : esc(p.shirt)}</span><span class="nm">${esc(p.name)}</span>${p.card ? `<span class="cd ${p.card}" title="Carton"></span>` : ''}</div>`).join('')}${s.injuries[i] ? `<div class="small muted" style="margin-top:6px">🩹 ${esc(s.injuries[i])}</div>` : ''}</div>`;
+    const gl = (i) => s.scorers[i].map((g) => `${esc(g.name || 'N°' + g.no)}${g.n > 1 ? ' ×' + g.n : ''}`).join(', ');
+    if (s.scorers[0].length + s.scorers[1].length) $('#goals').innerHTML = `<div class="cols" style="text-align:left"><div>⚽ ${gl(0) || '—'}</div><div>⚽ ${gl(1) || '—'}</div></div>`;
     const cd = s.cards;
     $('#sheet').innerHTML = `<h2>Feuille de match</h2><div class="card"><div class="cols">${col(0)}${col(1)}</div></div>
     ${cd.green + cd.yellow + cd.red ? `<p class="small muted center">Cartons : ${cd.green ? `<span class="cd green"></span> ×${cd.green} ` : ''}${cd.yellow ? `<span class="cd yellow"></span> ×${cd.yellow} ` : ''}${cd.red ? `<span class="cd red"></span> ×${cd.red}` : ''}</p>` : ''}
@@ -269,8 +291,8 @@ const notFound = () => (app.innerHTML = '<div class="empty">Page introuvable. <a
 // ---------- routeur ----------
 async function route(keep) {
   const [, name = '', a, b] = location.hash.replace(/^#/, '').split('/');
-  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search' }[name] || 'home';
-  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', actus: 'actus', search: 'home' }[v];
+  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs' }[name] || 'home';
+  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', actus: 'actus', search: 'home' }[v];
   const root = ['home', 'matchs', 'comps', 'equipes', 'actus'].includes(v);
   $('#back').hidden = root;
   document.querySelectorAll('.tabs a').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));

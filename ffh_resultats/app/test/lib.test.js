@@ -26,3 +26,11 @@ test('news', () => {
   const n = parseNewsHtml(html); assert.equal(n.length, 1); assert.equal(n[0].title, 'Titre & co'); assert.equal(n[0].image, 'https://www.ffhockey.org/images/a.jpg');
 });
 test('stripTags', () => assert.equal(stripTags('<b>a&nbsp;b</b>'), 'a b'));
+
+test('buteurs : numéro résolu en nom', () => {
+  const row = (n, nm) => `<tr><td>001</td><td><strong>${n}</strong></td><td>${nm}</td><td></td><td>002</td><td><strong>${n}</strong></td><td>ADV ${nm}</td><td></td></tr>`;
+  const html = `<table class="orbe"><tbody>${row(14, 'DUPONT ANNE')}${row(30, 'MARTIN LEA')}</tbody></table><strong>Buteurs : </strong>N°14 (x2), N°30 (x1)</div><strong>Buteurs : </strong>N°99 (x1)</div>`;
+  const s = parseSheet(html);
+  assert.deepEqual(s.scorers[0].map((g) => [g.name, g.n]), [['DUPONT ANNE', 2], ['MARTIN LEA', 1]]);
+  assert.equal(s.scorers[1][0].name, null);
+});

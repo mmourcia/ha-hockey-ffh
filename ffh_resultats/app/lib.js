@@ -83,6 +83,11 @@ export function parseSheet(html = '') {
   }
   const buteurs = [...h.matchAll(/<strong>Buteurs\s*:\s*<\/strong>([\s\S]*?)<\/div>/g)].map((m) => stripTags(m[1]));
   out.goals = [buteurs[0] || '', buteurs[1] || ''];
+  // résolution numéro de maillot -> joueur
+  out.scorers = out.goals.map((g, side) => [...g.matchAll(/N°\s*(\d+)\s*(?:\(\s*x\s*(\d+)\s*\))?/gi)].map((m) => {
+    const p = out.players[side].find((x) => x.shirt === m[1]);
+    return { no: m[1], name: p ? p.name : null, n: +(m[2] || 1) };
+  }));
   const inj = [...h.matchAll(/Blessures\s*:\s*<\/strong>([\s\S]*?)<div class="cl2">/g)].map((m) => stripTags(m[1]));
   out.injuries = [inj[0] || '', inj[1] || ''];
   for (const m of h.matchAll(/<strong>(Arbitre \d|Délégué \d|Capitaine[^<]*)<\/strong><\/p>\s*<p>([\s\S]*?)<\/p>/g)) {

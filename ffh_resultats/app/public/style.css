@@ -58,3 +58,6 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .top{gap:6px}.brand{flex:1}
 .list a.tl{display:flex;flex-direction:column;gap:1px;padding:0;border:0;min-width:0}.list a.tl b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.list a.tl span{white-space:normal}
 .list a.tl{align-items:flex-start;text-align:left}
+.fteam{border-top:1px solid var(--line)}.fteam:first-child{border-top:0}.fteam .fh{display:flex;flex-direction:column;padding:10px 12px 4px;background:var(--acc2)}
+.fteam .match{padding:8px 12px}
+@media(max-width:899px){.home-compact .news img{height:60px}}
