@@ -70,3 +70,11 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .staff{display:flex;flex-direction:column;padding:3px 0;font-size:13px;min-width:0}.staff .nm2{overflow-wrap:anywhere}
 .qlinks a{white-space:normal;min-width:0;line-height:1.2;padding:8px 4px}
 .card:has(table.st){overflow-x:auto}.t.st td.team{min-width:96px}
+
+/* v1.5.2 : bloc équipe favorite — en-tête, raccourcis et matchs bien séparés */
+.fteam{overflow:hidden}
+.fteam .fh{padding:12px 12px 10px;gap:2px}
+.fteam .fh .muted{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fteam .fh .rank{margin-top:2px}
+.qlinks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card)}
+.qlinks a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;min-height:44px;padding:6px 2px;border:1px solid var(--line);background:var(--card);font-size:12px;font-weight:600;line-height:1.15;text-align:center;overflow-wrap:anywhere}

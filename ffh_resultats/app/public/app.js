@@ -92,7 +92,7 @@ views.home = async () => {
       const next = ms.filter((m) => m.status === 'upcoming' && t(m) > now - 2 * 3600e3).sort((a, b) => t(a) - t(b))[0];
       const last = ms.filter((m) => m.status === 'played').sort((a, b) => t(b) - t(a))[0];
       const pid = (ms.find((m) => m.poule) || {}).poule;
-      return `<div class="fteam"><a class="fh" href="#/equipe/${id}"><b>${esc(tm.name)}</b><span class="muted small">${esc(teamLabel(tm))} · ${esc(teamMeta(tm))}</span><span class="rank small" data-rank="${esc(id)}" data-poule="${esc(pid || '')}"></span></a><div class="qlinks"><a href="#/equipe/${id}/classement">📊 Classement</a><a href="#/equipe/${id}/matchs">📅 Calendrier</a><a href="#/equipe/${id}/joueurs">👥 Joueurs</a></div>${last ? matchCard(last) : ''}${next ? matchCard(next) : ''}${!last && !next ? '<div class="pad muted small">Aucun match programmé.</div>' : ''}</div>`;
+      return `<div class="fteam"><a class="fh" href="#/equipe/${id}"><b>${esc(tm.name)}</b><span class="muted small">${esc(teamLabel(tm))} · ${esc(teamMeta(tm))}</span><span class="rank small" data-rank="${esc(id)}" data-poule="${esc(pid || '')}"></span></a><div class="qlinks"><a href="#/equipe/${id}/classement"><span>📊</span>Classement</a><a href="#/equipe/${id}/matchs"><span>📅</span>Calendrier</a><a href="#/equipe/${id}/joueurs"><span>👥</span>Joueurs</a></div>${last ? matchCard(last) : ''}${next ? matchCard(next) : ''}${!last && !next ? '<div class="pad muted small">Aucun match programmé.</div>' : ''}</div>`;
     }).join('');
     h += '</div>';
   }

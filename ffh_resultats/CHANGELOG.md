@@ -39,3 +39,6 @@
 
 ## 1.5.1
 - Correctif : page Club (erreur), boutons de raccourcis qui se chevauchent, encadrement (chef d’équipe, entraîneur) recouvert sur les feuilles de match, « 1 m. » remplacé par « 1 match ».
+
+## 1.5.2
+- Accueil : bloc équipe favorite refait (en-tête, boutons Classement/Calendrier/Joueurs en grille, matchs) pour éviter tout chevauchement.
