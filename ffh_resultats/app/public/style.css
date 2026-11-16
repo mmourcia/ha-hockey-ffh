@@ -121,3 +121,7 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .ev-b .cf{margin-left:4px}.open{margin:0 0 8px;padding:8px}
 .scorer .search.mini{margin:0 0 6px}.cmt{margin:0 0 4px}
 .link[disabled]{opacity:.4}
+/* 1.11.3 : infos du match en bandeau compact au-dessus du direct */
+.band{margin-bottom:10px}.band .sheet-h{padding:10px 12px}.band .kv{font-size:13px;gap:2px 12px;justify-content:flex-start;text-align:left}
+.band .btn{padding:5px 12px;font-size:13px}.band .sheet-h>p{margin:8px 0 0!important}
+.band.live .vs,.band.live #goals{display:none}.band.live .sheet-h{padding:8px 12px}

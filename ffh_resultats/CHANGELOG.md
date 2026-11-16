@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.11.3
+- Fiche match à venir : les infos du match (compétition, date, lieu, partage, itinéraire) passent dans un bandeau compact tout en haut, au-dessus du score et du panneau de saisie ; les noms d'équipes ne sont plus répétés quand le direct est affiché.
+
 ## 1.11.2
 - Panneau HA : le badge de synchronisation affiche l'ancienneté et l'heure de la dernière synchro (« Synchronisation OK · il y a 3 min (14:32) »).
 - Accueil du site : « Résultats FFH synchronisés il y a N min ».

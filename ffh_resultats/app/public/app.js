@@ -516,6 +516,7 @@ async function startLive(m) {
     if (!$('#live')) return;
     const scoring = store.get(key, false) && inWindow(m);
     box.innerHTML = liveTop(m, v, scoring); tl.innerHTML = liveTimeline(m, v);
+    app.querySelector('.band')?.classList.toggle('live', liveVisible(m, v)); // bandeau compact : les équipes sont déjà dans le tableau de score
     // celui qui saisit garde son panneau en haut et la frise en bas de page ; celui qui regarde a la frise juste sous le score
     if (scoring) { if (tl !== app.lastElementChild) app.append(tl); } else if (tl.previousElementSibling !== box) box.after(tl);
     box.querySelector('#who')?.addEventListener('input', (e) => (draft.who = e.target.value));
@@ -562,11 +563,11 @@ views.match = async (id) => {
   const m = demo ? { id: 'demo', comp: '', poule: null, round: 'Match de démonstration', date: `${todayKey()} ${pad(new Date().getHours())}:${pad(new Date().getMinutes())}:00`, t1: { id: 'demo:1', name: 'Équipe Rouge' }, t2: { id: 'demo:2', name: 'Équipe Bleue' }, status: 'upcoming', venue: 'Terrain d’entraînement (fictif)', city: null, sheet: false } : D.matches.find((x) => x.id === id); if (!m) return notFound();
   const c = IDX.comp[m.comp];
   const played = m.status === 'played';
-  app.innerHTML = `<div id="live"></div><div id="livetl"></div><div class="card"><div class="sheet-h"><a class="muted small" href="#/comp/${m.comp}">${esc(c?.name || '')}${m.round ? ' · ' + esc(m.round) : ''}</a>
+  app.innerHTML = `<div class="card ${played ? '' : 'band'}"><div class="sheet-h"><a class="muted small" href="#/comp/${m.comp}">${esc(c?.name || '')}${m.round ? ' · ' + esc(m.round) : ''}</a>
   <div class="vs"><a class="tn" href="#/equipe/${m.t1.id}">${esc(m.t1.name)}</a><div class="big">${played ? `${m.s1} - ${m.s2}` : m.status === 'forfeit' ? 'Forfait' : 'vs'}</div><a class="tn" href="#/equipe/${m.t2.id}">${esc(m.t2.name)}</a></div>
   <div class="kv"><span>📅 ${m.date ? esc(dayLong(m.date.slice(0, 10))) : 'Date à définir'}${hhmm(m) ? ' · ' + hhmm(m) : ''}</span>${m.venue ? `<span>📍 ${esc(m.venue)}${m.city ? ', ' + esc(m.city) : ''}</span>` : ''}${m.reason ? `<span class="tag warn">${esc(m.reason)}</span>` : ''}</div>
   <div id="goals" class="small" style="margin-top:8px"></div><p style="margin:12px 0 0"><button class="btn" id="share">Partager</button> ${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="https://www.openstreetmap.org/search?query=${encodeURIComponent(m.venue + ' ' + (m.city || ''))}">Itinéraire</a>` : ''}</p></div></div>
-  <div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
+  <div id="live"></div><div id="livetl"></div><div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
   $('#share').onclick = async () => { const data = { title: `${m.t1.name} – ${m.t2.name}`, text: played ? `${m.t1.name} ${m.s1}-${m.s2} ${m.t2.name}` : `${m.t1.name} – ${m.t2.name}`, url: location.href }; try { navigator.share ? await navigator.share(data) : (await navigator.clipboard.writeText(location.href), toast('Lien copié')); } catch {} };
   if (m.status === 'upcoming' || m.status === 'stopped') { if (!demo) preMatch(m); startLive(m); }
   if (!m.sheet) return;
