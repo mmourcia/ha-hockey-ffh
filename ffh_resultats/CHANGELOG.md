@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.13.0
+- Frise du direct : chaque fait porte le chrono du quart-temps (« Q2 07:32 ») au lieu de l'heure ; badge de validation sur chaque ligne (« 1 personne » ou « ✓ validé par N personnes »).
+- Chrono : « Pause » arrête le chrono et le retour sur le même quart-temps le reprend (plus de remise à zéro) ; un nouveau quart-temps repart de 00:00.
+- Saisie du buteur : texte libre résolu sur l'effectif de l'équipe (prénom, nom, n° de maillot dans n'importe quel ordre) ; suggestions pendant la frappe ; si plusieurs joueurs correspondent, le choix est proposé.
+- L'index des joueurs conserve le dernier n° de maillot connu (jamais le n° de licence).
+
 ## 1.12.1
 - Chrono indicatif : il ne s'arrête plus à 15:00, il continue (16:42, 18:10…) jusqu'à ce qu'un saisisseur déclare le quart-temps suivant. Le cumul « ≈ N' de jeu » reste plafonné à 15' par quart-temps.
 

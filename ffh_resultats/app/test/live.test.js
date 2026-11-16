@@ -84,10 +84,23 @@ test('commentaires : nettoyage, liens refusés, modération', () => {
   const [x] = l.notes(); assert.ok(l.removeNote('m1', x.id)); assert.equal(l.view('m1').events.filter((e) => e.k === 'note').length, 0);
 });
 
-test('début de période : première déclaration de la majorité', () => {
+test('chrono : pause puis retour sur le même quart-temps = reprise, pas remise à zéro', () => {
   const { l, tick } = mk();
-  l.report('m1', A, { action: 'period', p: 'Q2' }); const t0 = l.view('m1').periodStart; tick(5000);
-  l.report('m1', B, { action: 'period', p: 'Q2' });
-  const v = l.view('m1'); assert.equal(v.period, 'Q2'); assert.equal(v.periodStart, t0); assert.ok(v.now > t0);
-  assert.equal(l.summary().m1.ps, t0);
+  l.report('m1', A, { action: 'period', p: 'Q2' }); tick(60e3); // 1 min de jeu
+  l.report('m1', A, { action: 'period', p: 'PAUSE' }); tick(120e3); // 2 min d'arrêt
+  l.report('m1', A, { action: 'period', p: 'Q2' }); tick(30e3); // + 30 s
+  const v = l.view('m1'); assert.equal(v.period, 'Q2'); assert.equal(v.clock.q, 2);
+  const el = v.clock.acc + (v.now - v.clock.since); assert.equal(el, 90e3);
+  // un Q3 démarre à 0
+  l.report('m1', A, { action: 'period', p: 'Q3' }); const w = l.view('m1'); assert.equal(w.clock.acc, 0);
+});
+test('chrono de chaque fait de la frise', () => {
+  const { l, tick } = mk();
+  l.report('m1', A, { action: 'period', p: 'Q1' }); tick(5 * 60e3);
+  l.report('m1', A, { action: 'goal', side: 0, q: 1 }); tick(5 * 60e3);
+  l.report('m1', A, { action: 'period', p: 'PAUSE' }); tick(600e3);
+  l.report('m1', A, { action: 'period', p: 'Q1' }); tick(2 * 60e3);
+  l.report('m1', A, { action: 'goal', side: 1, q: 1 });
+  const ev = l.view('m1').events; // le plus récent d'abord
+  assert.equal(ev[0].c, 12 * 60e3); // 10 min avant la pause + 2 min après assert.equal(ev[1].c, 5 * 60e3);
 });

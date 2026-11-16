@@ -29,6 +29,7 @@ export function aggregate(matches, sheets, compsById, { includeYouth = false } =
         let pl = players.get(id); if (!pl) players.set(id, (pl = { id, name: x.n, rows: new Map(), games: [] }));
         let r = pl.rows.get(team.id); if (!r) pl.rows.set(team.id, (r = { team: { id: team.id, name: team.name }, comp: { id: comp.id, name: comp.name, disc: comp.disc, sexe: comp.sexe }, matches: 0, goals: 0, green: 0, yellow: 0, red: 0 }));
         const goals = x.g ? 0 : goalsByShirt[x.s] || 0;
+        if (/^\d{1,3}$/.test(String(x.s || '').trim()) && (m.date || '') >= (r.noDate || '')) { r.no = String(x.s).trim(); r.noDate = m.date || ''; } // dernier n° de maillot connu (aide à la saisie du buteur en direct)
         r.matches++; r.goals += goals; r.green += x.c[0]; r.yellow += x.c[1]; r.red += x.c[2];
         pl.games.push({ m: m.id, team: team.id, goals, c: x.c });
       }
@@ -46,7 +47,7 @@ export function search(players, { q = '', team = '', teams = null, limit = 60, s
     for (const r of pl.rows.values()) {
       if (team && r.team.id !== team) continue;
       if (teams && !teams.includes(r.team.id)) continue;
-      out.push({ id: pl.id, name: pl.name, ...r });
+      const { noDate, ...pub } = r; out.push({ id: pl.id, name: pl.name, ...pub });
     }
   }
   const cards = (r) => r.green + r.yellow + r.red;

@@ -12,6 +12,16 @@ const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f<>]/g, ' ')
 const hasLink = (s) => /https?:|www\.|\.(com|fr|net|org)\b/i.test(s);
 const mode = (vals) => { const c = new Map(); for (const v of vals.filter(Boolean)) { const k = v.toLowerCase(); c.set(k, { v: c.get(k)?.v || v, n: (c.get(k)?.n || 0) + 1 }); } return [...c.values()].sort((a, b) => b.n - a.n)[0]?.v || ''; };
 
+const isQ = (p) => /^Q[1-4]$/.test(p || '');
+// quart-temps = suite de segments de jeu : « Pause » puis retour sur le même Qn reprend le chrono là où il en était
+function setPeriod(me, p, t) {
+  if (p === me.p) return;
+  if (isQ(me.p)) { const last = me.qs[me.p]?.at(-1); if (last && last.e == null) last.e = t; }
+  me.p = p; me.pt = t;
+  if (isQ(p)) (me.qs[p] ||= []).push({ f: t });
+}
+const elapsedAt = (segs, t) => { let s = 0; for (const g of segs || []) { if (g.f > t) break; s += Math.max(0, Math.min(g.e ?? Infinity, t) - g.f); } return s; };
+
 export function aggregate(rec, now = Date.now()) {
   const reps = Object.entries(rec?.r || {}).filter(([, r]) => now - r.seen < KEEP && (r.g.length || r.x.length || r.p));
   const n = reps.length;
@@ -43,15 +53,24 @@ export function aggregate(rec, now = Date.now()) {
   for (const [, r] of reps) if (r.p) { const v = (votes[r.p] ||= { n: 0, t: 0 }); v.n++; v.t = Math.max(v.t, r.pt || 0); }
   const best = Object.entries(votes).sort((a, b) => b[1].n - a[1].n || b[1].t - a[1].t)[0];
   // début de la période : première personne à l'avoir déclarée (pour le chrono indicatif)
-  const periodStart = best ? Math.min(...reps.filter(([, r]) => r.p === best[0]).map(([, r]) => r.pt || now)) : null;
-  return { now, period: best ? best[0] : null, periodStart, votes: best ? best[1].n : 0, reporters: n, score, pending, goals, events, updated: Math.max(0, ...reps.map(([, r]) => r.seen)) || null };
+  const first = (r, q) => r.qs?.[q]?.[0]?.f ?? Infinity;
+  let clock = null;
+  if (best && isQ(best[0])) {
+    const ref = reps.filter(([, r]) => r.p === best[0]).map(([, r]) => r).sort((a, b) => first(a, best[0]) - first(b, best[0]))[0];
+    const sg = ref?.qs?.[best[0]] || [], open = sg.find((g) => g.e == null);
+    clock = { q: +best[0][1], acc: sg.reduce((s, g) => s + (g.e != null ? g.e - g.f : 0), 0), since: open ? open.f : null };
+  }
+  // chrono de chaque fait : temps de jeu écoulé dans son quart-temps (référence = premier saisisseur à avoir déclaré ce quart-temps)
+  const refQ = (q) => reps.map(([, r]) => r).filter((r) => r.qs?.[`Q${q}`]?.length).sort((a, b) => first(a, `Q${q}`) - first(b, `Q${q}`))[0];
+  for (const e of events) { const r = e.q ? refQ(e.q) : null; e.c = r ? elapsedAt(r.qs[`Q${e.q}`], e.t) : null; }
+  return { now, period: best ? best[0] : null, clock, votes: best ? best[1].n : 0, reporters: n, score, pending, goals, events, updated: Math.max(0, ...reps.map(([, r]) => r.seen)) || null };
 }
 
 export function createLive(dir, { now = () => Date.now() } = {}) {
   const file = path.join(dir, 'live.json');
   let S = {}; // matchId -> { r: { vid: { g:[], x:[], p, pt, seen } } }
   try { S = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-  for (const rec of Object.values(S)) for (const r of Object.values(rec.r || {})) r.x ||= [];
+  for (const rec of Object.values(S)) for (const r of Object.values(rec.r || {})) { r.x ||= []; if (!r.qs) { r.qs = {}; if (/^Q[1-4]$/.test(r.p || '')) r.qs[r.p] = [{ f: r.pt }]; } }
   let dirty = false;
   const prune = () => { for (const [id, rec] of Object.entries(S)) { for (const [v, r] of Object.entries(rec.r)) if (now() - r.seen > KEEP) delete rec.r[v]; if (!Object.keys(rec.r).length) delete S[id]; } };
 
@@ -59,7 +78,7 @@ export function createLive(dir, { now = () => Date.now() } = {}) {
     if (!VID.test(vid || '')) return { error: 'identifiant invalide' };
     const rec = (S[matchId] ||= { r: {} });
     if (!rec.r[vid] && Object.keys(rec.r).length >= MAX_REPORTERS) return { error: 'trop de saisisseurs sur ce match' };
-    const me = (rec.r[vid] ||= { g: [], x: [], p: null, pt: 0, seen: now() });
+    const me = (rec.r[vid] ||= { g: [], x: [], qs: {}, p: null, pt: 0, seen: now() });
     const t = now();
     const room = () => me.x.length < MAX_EVENTS;
     const qOk = (q) => [1, 2, 3, 4].includes(q);
@@ -98,7 +117,7 @@ export function createLive(dir, { now = () => Date.now() } = {}) {
       }
       case 'period':
         if (!PERIODS.includes(body.p)) return { error: 'période invalide' };
-        me.p = body.p; me.pt = t; break;
+        setPeriod(me, body.p, t); break;
       case 'leave': delete rec.r[vid]; if (!Object.keys(rec.r).length) delete S[matchId]; dirty = true; return { ok: true };
       default: return { error: 'action inconnue' };
     }
@@ -115,7 +134,7 @@ export function createLive(dir, { now = () => Date.now() } = {}) {
     for (const [id, rec] of Object.entries(S)) {
       const a = aggregate(rec, now());
       if (!a.updated || now() - a.updated > maxAge) continue;
-      out[id] = { s: a.score, pe: a.pending, p: a.period, ps: a.periodStart, n: a.reporters };
+      out[id] = { s: a.score, pe: a.pending, p: a.period, ck: a.clock, n: a.reporters };
     }
     return out;
   };

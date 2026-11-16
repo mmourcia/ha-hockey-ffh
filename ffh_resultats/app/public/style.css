@@ -126,3 +126,7 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .band .btn{padding:5px 12px;font-size:13px}.band .sheet-h>p{margin:8px 0 0!important}
 .band.live .vs,.band.live #goals{display:none}.band.live .sheet-h{padding:8px 12px}
 .band .sheet-h{text-align:center}.band .kv{justify-content:center;text-align:center}
+/* 1.13 : frise au chrono, badges, résolution du buteur */
+.ev .q{width:48px;line-height:1.2}.ev .q .muted{font-weight:500;font-variant-numeric:tabular-nums}
+.cf.one{background:var(--line);color:var(--mute);font-weight:600}
+.sug{display:flex;flex-wrap:wrap;gap:6px;margin:-2px 0 6px}.sug:empty{display:none}.sug .chip{font-size:13px;padding:5px 10px;text-align:left}
