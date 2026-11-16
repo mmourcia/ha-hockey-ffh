@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.13.3
+- Fiche match : quand personne ne saisit encore, le tableau affiche les deux équipes et « 0 – 0 » (les noms d'équipes étaient masqués).
+
 ## 1.13.2
 - Match de démonstration (#/match/demo) : reprend les équipes réelles de PHC Marcq – LMHC (15 nov.) pour tester la saisie avec un vrai effectif (résolution des buteurs, ex. « Yvan » → HANNOIR YVAN).
 
