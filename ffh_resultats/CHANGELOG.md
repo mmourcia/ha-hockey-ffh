@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.8.1
+- Fiche équipe, onglet Joueurs : même tri (buts, total des cartons, verts, jaunes, rouges, matchs) ; total « Σ » affiché partout.
+
 ## 1.8.0
 - Classement par joueur : tri par buts, total des cartons (tous cartons confondus), verts, jaunes, rouges ou matchs ; le total « Σ » s'affiche sur chaque joueur.
 - Onglet Buteurs d'une compétition : colonnes cliquables (buts, Σ cartons, 🟩, 🟨, 🟥).

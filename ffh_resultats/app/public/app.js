@@ -262,7 +262,7 @@ views.buteurs = async () => {
 
 // ---------- Arbitres ----------
 let rState = { q: '', sort: 'matches' };
-const refStats = (r) => `<span title="Matchs arbitrés"><b>${r.matches}</b> match${r.matches > 1 ? 's' : ''}</span><span title="Total des cartons">Σ ${r.green + r.yellow + r.red}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Cartons par match">${r.perMatch} / match</span>`;
+const refStats = (r) => `<span title="Matchs arbitrés"><b>${r.matches}</b> match${r.matches > 1 ? 's' : ''}</span><span title="Total des cartons">Σ ${r.green + r.yellow + r.red}</span><span title="Total des cartons">Σ ${r.green + r.yellow + r.red}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Cartons par match">${r.perMatch} / match</span>`;
 views.arbitres = async () => {
   const SORTS = [['matches', 'Matchs'], ['cards', 'Cartons'], ['perMatch', 'Cartons / match'], ['yellow', 'Jaunes'], ['red', 'Rouges']];
   app.innerHTML = `<h1>Compétitions</h1>${compTabs('arbitres')}
@@ -366,8 +366,10 @@ views.equipe = async (id, tab) => {
   } else if (eTab === 'joueurs') {
     box.innerHTML = '<div class="loading">Chargement…</div>';
     try {
-      const d = await api(`players?team=${encodeURIComponent(id)}&limit=200`);
-      box.innerHTML = d.rows.length ? `<div class="card list">${d.rows.map((r) => `<a href="#/joueur/${r.id}"><div class="grow"><div><b>${esc(r.name)}</b></div><div class="stats">${statCells(r)}</div></div><span class="chev">›</span></a>`).join('')}</div>` : '<div class="empty">Pas encore de feuilles de match pour cette équipe.</div>';
+      const d = await api(`players?team=${encodeURIComponent(id)}&limit=200&sort=${jState.sort}`);
+      const chips = `<div class="chips"><span class="muted small" style="align-self:center">Trier par</span>${JSORTS.map(([k, l]) => `<button class="chip ${jState.sort === k ? 'on' : ''}" data-js="${k}">${l}</button>`).join('')}</div>`;
+      box.innerHTML = d.rows.length ? chips + `<div class="card list">${d.rows.map((r) => `<a href="#/joueur/${r.id}"><div class="grow"><div><b>${esc(r.name)}</b></div><div class="stats">${statCells(r)}</div></div><span class="chev">›</span></a>`).join('')}</div>` : '<div class="empty">Pas encore de feuilles de match pour cette équipe.</div>';
+      box.querySelectorAll('[data-js]').forEach((b) => (b.onclick = () => { jState.sort = b.dataset.js; views.equipe(id, 'joueurs'); }));
     } catch { box.innerHTML = '<div class="empty">Source indisponible.</div>'; }
   } else {
     box.innerHTML = `<div class="card">${ms.map((m) => matchCard(m, { showComp: true })).join('')}</div>`;
