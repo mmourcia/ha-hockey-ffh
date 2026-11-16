@@ -469,63 +469,72 @@ async function liveApi(id, body) {
 }
 const hmin = (t) => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
 let draft = { who: '', txt: '' };
-function liveHtml(m, v, scoring) {
+const liveVisible = (m, v) => v.reporters > 0 || inWindow(m);
+// haut de page : score (pour tous) + panneau de contrôle compact (pour celui qui saisit)
+function liveTop(m, v, scoring) {
   const T = (i) => esc(m['t' + (i + 1)].name), open = inWindow(m);
-  if (!v.reporters && !open) return '';
-  const RES = { saved: 'arrêté', miss: 'non cadré' };
+  if (!liveVisible(m, v)) return '';
+  const per = v.period ? (v.period === 'END' ? 'Match terminé' : v.period === 'PAUSE' ? 'Pause' : 'Quart-temps ' + v.period.slice(1)) : 'En cours';
+  const board = v.reporters ? `<div class="lv-top"><span class="per ${v.period === 'END' ? 'end' : ''}">${per}</span><span class="muted small">${v.reporters} spectateur${v.reporters > 1 ? 's' : ''} · <b style="color:var(--warn)">non officiel</b></span></div>
+    <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>` : '<p class="muted" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score ! <b style="color:var(--warn)">Non officiel.</b></p>';
+  const mine = v.mine || { p: null, goals: [], open: [], notes: 0 };
+  const side = (i) => `<div class="lv-col"><div class="lv-h">${T(i)}</div><button class="gb" data-g="${i}">⚽ But</button><button class="gb alt" data-sp="pc:${i}">🏑 Penalty corner</button><button class="gb alt" data-sp="stroke:${i}">🎯 Stroke</button></div>`;
+  const panel = scoring ? `<div class="scorer"><div class="lv-top"><b>Vous saisissez</b><button class="link" data-stop>Arrêter</button></div>
+    <div class="chips pp">${['Q1', 'Q2', 'Q3', 'Q4', 'PAUSE', 'END'].map((p) => `<button class="chip ${mine.p === p ? 'on' : ''}" data-pp="${p}">${p === 'PAUSE' ? 'Pause' : p === 'END' ? 'Fin' : p}</button>`).join('')}</div>
+    <div id="qask" hidden><div class="small muted">Dans quel quart-temps ?</div><div class="chips pp">${[1, 2, 3, 4].map((q) => `<button class="chip" data-gq="${q}">Q${q}</button>`).join('')}</div></div>
+    <div class="lv-cols">${side(0)}${side(1)}</div>
+    ${mine.open.map((o) => `<div class="open"><b>${o.k === 'pc' ? '🏑 Penalty corner' : '🎯 Stroke'} ${T(o.side)}</b> <span class="muted small">(Q${o.q})</span> : issue ?<div class="chips pp"><button class="chip" data-res="${o.id}:saved">🧤 Arrêté</button><button class="chip" data-res="${o.id}:but">⚽ But</button><button class="chip" data-res="${o.id}:miss">❌ Non cadré</button></div></div>`).join('')}
+    <input class="search mini" id="who" maxlength="40" placeholder="Buteur (facultatif) : nom ou n°" value="${esc(draft.who)}">
+    <div class="cmt"><input class="search mini" id="txt" maxlength="140" placeholder="Commentaire (facultatif)" value="${esc(draft.txt)}"><button class="btn" data-note>Publier</button></div>
+    <button class="link" data-undo ${mine.goals.length || mine.open.length || mine.notes ? '' : 'disabled'}>↩ Annuler ma dernière saisie</button></div>`
+    : open ? '<button class="btn primary" data-start>📣 Je saisis ce match</button>' : '';
+  return `<div class="card pad lv-card">${board}${panel}</div>`;
+}
+// frise des faits de jeu (le plus récent d'abord)
+function liveTimeline(m, v) {
+  if (!liveVisible(m, v)) return '';
+  const T = (i) => esc(m['t' + (i + 1)].name), RES = { saved: 'arrêté', miss: 'non cadré' };
   const evRow = (e) => {
     const q = `<span class="q">${e.q ? 'Q' + e.q : '·'}</span>`, when = `<span class="muted small">${hmin(e.t)}</span>`;
-    const badge = e.k === 'note' ? '' : `<span class="cf ${e.confirmed ? 'ok' : 'wait'}">${e.confirmed ? '✓ ' + e.support : 'à confirmer'}</span>`;
+    const badge = e.k !== 'note' && e.support > 1 ? `<span class="cf ok">✓ validé par ${e.support} personnes</span>` : '';
     const body = e.k === 'note' ? `💬 ${esc(e.txt)}`
       : e.k === 'goal' ? `⚽ <b>But</b> ${T(e.side)}${e.who ? ' – ' + esc(e.who) : ''}${e.via ? ` <span class="muted">(sur ${e.via === 'pc' ? 'penalty corner' : 'stroke'})</span>` : ''}`
       : `${e.k === 'pc' ? '🏑 <b>Penalty corner</b>' : '🎯 <b>Stroke</b>'} ${T(e.side)} <span class="muted">· ${e.res ? RES[e.res] : 'en cours'}</span>${e.txt ? ' – ' + esc(e.txt) : ''}`;
-    return `<div class="ev">${q}<div class="ev-b"><div>${body}</div>${when}</div>${badge}</div>`;
+    return `<div class="ev">${q}<div class="ev-b"><div>${body}</div><div>${when}${badge ? ' ' + badge : ''}</div></div></div>`;
   };
-  const head = v.reporters ? `<div class="lv-top"><span class="per ${v.period === 'END' ? 'end' : ''}">${v.period ? (v.period === 'END' ? 'Match terminé' : v.period === 'PAUSE' ? 'Pause' : 'Quart-temps ' + v.period.slice(1)) : 'En cours'}</span><span class="muted small">${v.reporters} spectateur${v.reporters > 1 ? 's' : ''} · ${v.votes} d’accord sur la période</span></div>
-    <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>${v.pending[0] + v.pending[1] ? `<div class="small center" style="color:var(--warn)">+${v.pending[0] + v.pending[1]} but${v.pending[0] + v.pending[1] > 1 ? 's' : ''} à confirmer (vu par un seul spectateur)</div>` : ''}
-    <div class="evs">${v.events.map(evRow).join('')}</div>
-    ${v.period === 'END' ? '<div class="small muted center">Dernier score saisi : la feuille officielle FFH fera foi.</div>' : ''}` : '<p class="muted" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score !</p>';
-  const mine = v.mine || { p: null, goals: [], open: [], notes: 0 };
-  const nb = mine.goals.length + (v.mine ? 0 : 0);
-  const panel = scoring ? `<div class="scorer"><div class="lv-top"><b>Vous saisissez ce match</b><button class="link" data-stop>Arrêter</button></div>
-    <div class="small muted">Où en est le match ?</div><div class="chips">${['Q1', 'Q2', 'Q3', 'Q4', 'PAUSE', 'END'].map((p) => `<button class="chip ${mine.p === p ? 'on' : ''}" data-pp="${p}">${p === 'PAUSE' ? 'Pause' : p === 'END' ? 'Fin du match' : p}</button>`).join('')}</div>
-    <input class="search mini" id="who" maxlength="40" placeholder="Buteur (facultatif) : nom ou n° de maillot" value="${esc(draft.who)}">
-    <div class="gbtns"><button class="gb" data-g="0">⚽ But<span>${T(0)}</span></button><button class="gb" data-g="1">⚽ But<span>${T(1)}</span></button></div>
-    <div class="small muted">Faits de jeu</div>
-    <div class="gbtns sp"><button class="gb alt" data-sp="pc:0">🏑 Penalty corner<span>${T(0)}</span></button><button class="gb alt" data-sp="pc:1">🏑 Penalty corner<span>${T(1)}</span></button><button class="gb alt" data-sp="stroke:0">🎯 Stroke<span>${T(0)}</span></button><button class="gb alt" data-sp="stroke:1">🎯 Stroke<span>${T(1)}</span></button></div>
-    <div id="qask" hidden><div class="small muted">Dans quel quart-temps ?</div><div class="chips">${[1, 2, 3, 4].map((q) => `<button class="chip" data-gq="${q}">Q${q}</button>`).join('')}</div></div>
-    ${mine.open.map((o) => `<div class="open"><b>${o.k === 'pc' ? '🏑 Penalty corner' : '🎯 Stroke'} ${T(o.side)}</b> <span class="muted small">(Q${o.q})</span> — quelle issue ?<div class="chips"><button class="chip" data-res="${o.id}:saved">🧤 Arrêté</button><button class="chip" data-res="${o.id}:but">⚽ But</button><button class="chip" data-res="${o.id}:miss">❌ Non cadré</button></div></div>`).join('')}
-    <div class="cmt"><input class="search mini" id="txt" maxlength="140" placeholder="Commentaire (belle action, arrêt de jeu…)" value="${esc(draft.txt)}"><button class="btn" data-note>Publier</button></div>
-    <div class="muted small">Le commentaire est joint à l’issue d’un penalty corner / stroke si vous en choisissez une, sinon « Publier » l’affiche seul.</div>
-    <button class="btn" data-undo ${mine.goals.length || mine.open.length || mine.notes ? '' : 'disabled'}>↩ Annuler ma dernière saisie</button></div>`
-    : open ? '<button class="btn primary" data-start>📣 Je saisis ce match</button>' : '';
-  return `<h2>En direct <span class="tag warn" style="margin-left:6px">non officiel</span></h2><div class="card pad lv-card">${head}${panel}<p class="muted small" style="margin:10px 0 0">Score saisi par des spectateurs présents au bord du terrain, sans vérification de la FFH. Un but est confirmé quand plusieurs spectateurs indépendants l’ont saisi. Le résultat officiel fait foi.</p></div>`;
+  return `<h2>Déroulé du match</h2><div class="card pad lv-card">${v.events.length ? `<div class="evs">${v.events.map(evRow).join('')}</div>` : '<div class="muted small">Rien de saisi pour l’instant.</div>'}
+    <p class="muted small" style="margin:10px 0 0">Saisi par des spectateurs présents au bord du terrain, sans vérification de la FFH. « Validé par N personnes » = le même fait a été saisi par plusieurs spectateurs indépendants. Le résultat officiel fait foi.</p>
+    ${m.id === 'demo' ? '<p class="small" style="margin:8px 0 0">🧪 <b>Match fictif</b> pour essayer la saisie, visible de tous. <button class="link" data-demo-reset>Remettre à zéro</button></p>' : ''}</div>`;
 }
 let liveTimer = null;
 async function startLive(m) {
-  const box = $('#live'); if (!box) return;
+  const box = $('#live'), tl = $('#livetl'); if (!box || !tl) return;
   const key = 'scoring.' + m.id; let v = { reporters: 0, goals: [], events: [], score: [0, 0], pending: [0, 0], mine: null };
   let pend = null;
   const draw = () => {
     if (!$('#live')) return;
-    box.innerHTML = liveHtml(m, v, store.get(key, false) && inWindow(m));
+    const scoring = store.get(key, false) && inWindow(m);
+    box.innerHTML = liveTop(m, v, scoring); tl.innerHTML = liveTimeline(m, v);
+    // celui qui saisit garde son panneau en haut et la frise en bas de page ; celui qui regarde a la frise juste sous le score
+    if (scoring) { if (tl !== app.lastElementChild) app.append(tl); } else if (tl.previousElementSibling !== box) box.after(tl);
     box.querySelector('#who')?.addEventListener('input', (e) => (draft.who = e.target.value));
     box.querySelector('#txt')?.addEventListener('input', (e) => (draft.txt = e.target.value));
     const act = async (body) => { try { v = await liveApi(m.id, body); if (['goal', 'resolve', 'note'].includes(body.action)) { if (body.action !== 'note') draft.who = ''; draft.txt = ''; } draw(); toast('Enregistré'); } catch (e) { toast(e.message); } };
-    box.querySelector('[data-start]')?.addEventListener('click', () => { store.set(key, true); draw(); });
+    box.querySelector('[data-start]')?.addEventListener('click', () => { store.set(key, true); draw(); window.scrollTo(0, 0); });
     box.querySelector('[data-stop]')?.addEventListener('click', () => { store.set(key, false); draw(); });
+    tl.querySelector('[data-demo-reset]')?.addEventListener('click', async () => { try { v = await liveApi('demo', { action: 'reset' }); draw(); toast('Démo remise à zéro'); } catch (e) { toast(e.message); } });
     box.querySelectorAll('[data-pp]').forEach((b) => (b.onclick = () => act({ action: 'period', p: b.dataset.pp })));
     box.querySelector('[data-undo]')?.addEventListener('click', () => act({ action: 'undo' }));
     box.querySelector('[data-note]')?.addEventListener('click', () => act({ action: 'note', txt: draft.txt }));
     box.querySelectorAll('[data-res]').forEach((b) => (b.onclick = () => { const [id, res] = b.dataset.res.split(':'); act({ action: 'resolve', id, res, who: draft.who, txt: draft.txt }); }));
     const cur = v.mine?.p && /^Q\d$/.test(v.mine.p) ? +v.mine.p[1] : 0;
-    const go = (p) => { pend = p; if (cur) run(cur); else $('#qask').hidden = false; };
     const run = (q) => act(pend.type === 'goal' ? { action: 'goal', side: pend.side, q, who: draft.who } : { action: 'sp', k: pend.k, side: pend.side, q });
+    const go = (p) => { pend = p; if (cur) run(cur); else $('#qask').hidden = false; };
     box.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => go({ type: 'goal', side: +b.dataset.g })));
     box.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { const [k, s] = b.dataset.sp.split(':'); go({ type: 'sp', k, side: +s }); }));
     box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); } catch {} await run(q); }));
   };
-  const poll = async () => { try { const n = await liveApi(m.id); if (n.official) { box.innerHTML = ''; clearInterval(liveTimer); return; } v = n; const a = document.activeElement; if (!(box.contains(a) && a.matches('input,button'))) draw(); } catch {} };
+  const poll = async () => { try { const n = await liveApi(m.id); if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; clearInterval(liveTimer); return; } v = n; const a = document.activeElement; if (!(box.contains(a) && a.matches('input,button'))) draw(); } catch {} };
   draw(); await poll();
   clearInterval(liveTimer); liveTimer = setInterval(() => { if (!document.hidden) poll(); }, 8000);
 }
@@ -552,13 +561,13 @@ views.match = async (id) => {
   const m = demo ? { id: 'demo', comp: '', poule: null, round: 'Match de démonstration', date: `${todayKey()} ${pad(new Date().getHours())}:${pad(new Date().getMinutes())}:00`, t1: { id: 'demo:1', name: 'Équipe Rouge' }, t2: { id: 'demo:2', name: 'Équipe Bleue' }, status: 'upcoming', venue: 'Terrain d’entraînement (fictif)', city: null, sheet: false } : D.matches.find((x) => x.id === id); if (!m) return notFound();
   const c = IDX.comp[m.comp];
   const played = m.status === 'played';
-  app.innerHTML = `<div class="card"><div class="sheet-h"><a class="muted small" href="#/comp/${m.comp}">${esc(c?.name || '')}${m.round ? ' · ' + esc(m.round) : ''}</a>
+  app.innerHTML = `<div id="live"></div><div id="livetl"></div><div class="card"><div class="sheet-h"><a class="muted small" href="#/comp/${m.comp}">${esc(c?.name || '')}${m.round ? ' · ' + esc(m.round) : ''}</a>
   <div class="vs"><a class="tn" href="#/equipe/${m.t1.id}">${esc(m.t1.name)}</a><div class="big">${played ? `${m.s1} - ${m.s2}` : m.status === 'forfeit' ? 'Forfait' : 'vs'}</div><a class="tn" href="#/equipe/${m.t2.id}">${esc(m.t2.name)}</a></div>
   <div class="kv"><span>📅 ${m.date ? esc(dayLong(m.date.slice(0, 10))) : 'Date à définir'}${hhmm(m) ? ' · ' + hhmm(m) : ''}</span>${m.venue ? `<span>📍 ${esc(m.venue)}${m.city ? ', ' + esc(m.city) : ''}</span>` : ''}${m.reason ? `<span class="tag warn">${esc(m.reason)}</span>` : ''}</div>
   <div id="goals" class="small" style="margin-top:8px"></div><p style="margin:12px 0 0"><button class="btn" id="share">Partager</button> ${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="https://www.openstreetmap.org/search?query=${encodeURIComponent(m.venue + ' ' + (m.city || ''))}">Itinéraire</a>` : ''}</p></div></div>
-  <div id="live"></div><div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
+  <div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
   $('#share').onclick = async () => { const data = { title: `${m.t1.name} – ${m.t2.name}`, text: played ? `${m.t1.name} ${m.s1}-${m.s2} ${m.t2.name}` : `${m.t1.name} – ${m.t2.name}`, url: location.href }; try { navigator.share ? await navigator.share(data) : (await navigator.clipboard.writeText(location.href), toast('Lien copié')); } catch {} };
-  if (m.status === 'upcoming' || m.status === 'stopped') { if (!demo) preMatch(m); startLive(m); if (demo) $('#live').insertAdjacentHTML('beforebegin', '<div class="card pad small" style="margin-bottom:10px">🧪 <b>Match fictif</b> pour essayer la saisie : tout ce que vous saisissez ici est visible de ceux qui ouvrent ce même lien. <button class="link" id="demo-reset">Remettre à zéro</button></div>'), $('#demo-reset').onclick = async () => { try { await liveApi('demo', { action: 'reset' }); toast('Démo remise à zéro'); views.match('demo'); } catch (e) { toast(e.message); } }; }
+  if (m.status === 'upcoming' || m.status === 'stopped') { if (!demo) preMatch(m); startLive(m); }
   if (!m.sheet) return;
   try {
     const s = await api('match/' + id);

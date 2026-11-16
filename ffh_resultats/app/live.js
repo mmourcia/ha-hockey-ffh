@@ -15,14 +15,13 @@ const mode = (vals) => { const c = new Map(); for (const v of vals.filter(Boolea
 export function aggregate(rec, now = Date.now()) {
   const reps = Object.entries(rec?.r || {}).filter(([, r]) => now - r.seen < KEEP && (r.g.length || r.x.length || r.p));
   const n = reps.length;
-  const thr = reps.filter(([, r]) => r.g.length).length >= 2 ? 2 : 1;
   const goals = [], sets = [];
   for (const side of [0, 1]) for (const q of [1, 2, 3, 4]) {
     const per = reps.map(([, r]) => r.g.filter((g) => g.s === side && g.q === q).sort((a, b) => a.t - b.t));
     const max = Math.max(0, ...per.map((a) => a.length));
     for (let i = 0; i < max; i++) {
       const sup = per.filter((a) => a.length > i);
-      goals.push({ k: 'goal', side, q, support: sup.length, confirmed: sup.length >= thr, t: Math.min(...sup.map((a) => a[i].t)), who: mode(sup.map((a) => a[i].who)), via: sup.map((a) => a[i].via).find(Boolean) || null });
+      goals.push({ k: 'goal', side, q, support: sup.length, confirmed: sup.length >= 2, t: Math.min(...sup.map((a) => a[i].t)), who: mode(sup.map((a) => a[i].who)), via: sup.map((a) => a[i].via).find(Boolean) || null });
     }
     for (const k of ['pc', 'stroke']) {
       const perx = reps.map(([, r]) => r.x.filter((e) => e.k === k && e.s === side && e.q === q).sort((a, b) => a.t - b.t));
@@ -37,8 +36,8 @@ export function aggregate(rec, now = Date.now()) {
   }
   const notes = reps.flatMap(([, r]) => r.x.filter((e) => e.k === 'note').map((e) => ({ k: 'note', q: e.q || 0, t: e.t, txt: e.txt })));
   goals.sort((a, b) => a.q - b.q || a.t - b.t);
-  const score = [0, 0], pending = [0, 0];
-  for (const g of goals) (g.confirmed ? score : pending)[g.side]++;
+  const score = [0, 0], pending = [0, 0]; // tous les buts saisis comptent ; « confirmed » = validé par au moins 2 personnes
+  for (const g of goals) score[g.side]++;
   const events = [...goals, ...sets, ...notes].sort((a, b) => b.t - a.t); // le plus récent d'abord
   const votes = {};
   for (const [, r] of reps) if (r.p) { const v = (votes[r.p] ||= { n: 0, t: 0 }); v.n++; v.t = Math.max(v.t, r.pt || 0); }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.11.1
+- Suivi en direct : tous les faits saisis comptent tout de suite (plus de « à confirmer ») ; quand plusieurs spectateurs saisissent la même chose, la ligne indique « validé par N personnes ».
+- Mise en page : le score est tout en haut de la fiche match ; celui qui saisit a son panneau de contrôle compact visible sans défiler (deux colonnes par équipe : But, Penalty corner, Stroke) et la frise passe en bas de page ; celui qui regarde voit la frise juste sous le score, du plus récent au plus ancien.
+
 ## 1.11.0
 - Le nom du championnat est mis en avant sur les cartes de match (gras, couleur d'accent, texte complet).
 - Saisie en direct : buteur facultatif (nom ou n°), penalty corner et stroke par équipe avec leur issue (arrêté, but, non cadré) — une issue « but » ajoute le but au score (« sur penalty corner / stroke ») —, commentaires libres, frise chronologique des faits de jeu avec heure et confirmations.

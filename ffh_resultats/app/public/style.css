@@ -111,3 +111,13 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .gbtns.sp{grid-template-columns:1fr 1fr}
 .open{border:1px solid var(--acc);border-radius:12px;padding:10px;margin:0 0 10px;background:var(--acc2)}
 .cmt{display:flex;gap:8px;align-items:center;margin:8px 0 4px}.cmt .search{margin:0;flex:1}
+/* 1.11.1 : mise en page compacte du suivi en direct */
+.lv-card{margin-bottom:10px}.lv-card .lv-top{margin-bottom:4px}.lv-score{margin:2px 0 4px}
+.scorer{margin-top:8px;padding-top:8px}
+.chips.pp{flex-wrap:nowrap;gap:4px;padding:2px 0 6px}.chips.pp .chip{flex:1;padding:6px 4px;text-align:center;font-size:13px}
+.lv-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 8px}.lv-col{display:flex;flex-direction:column;gap:6px;min-width:0}
+.lv-h{font-size:13px;font-weight:700;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv-col .gb{padding:11px 6px;font-size:16px;border-radius:12px}.lv-col .gb.alt{padding:8px 4px;font-size:13px}
+.ev-b .cf{margin-left:4px}.open{margin:0 0 8px;padding:8px}
+.scorer .search.mini{margin:0 0 6px}.cmt{margin:0 0 4px}
+.link[disabled]{opacity:.4}

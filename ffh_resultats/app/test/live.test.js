@@ -16,16 +16,17 @@ test('un seul saisisseur : ses buts comptent directement', () => {
   const v = l.view('m1', A);
   assert.deepEqual(v.score, [1, 1]); assert.equal(v.period, 'Q1'); assert.equal(v.reporters, 1); assert.deepEqual(v.mine.goals.length, 2);
 });
-test('deux saisisseurs : but confirmé seulement s\'il est vu par les deux', () => {
+test('deux saisisseurs : tous les buts comptent, validé quand plusieurs l\'ont vu', () => {
   const { l, tick } = mk();
   l.report('m1', A, { action: 'goal', side: 0, q: 1 }); tick(500);
   l.report('m1', B, { action: 'goal', side: 0, q: 1 }); tick(500);
   l.report('m1', A, { action: 'goal', side: 1, q: 2 });
   const v = l.view('m1');
-  assert.deepEqual(v.score, [1, 0]); assert.deepEqual(v.pending, [0, 1]);
-  assert.equal(v.goals.find((g) => g.side === 0).support, 2);
+  assert.deepEqual(v.score, [1, 1]);
+  assert.equal(v.goals.find((g) => g.side === 0).support, 2); assert.equal(v.goals.find((g) => g.side === 0).confirmed, true);
+  assert.equal(v.goals.find((g) => g.side === 1).confirmed, false);
   l.report('m1', C, { action: 'goal', side: 1, q: 2 });
-  assert.deepEqual(l.view('m1').score, [1, 1]);
+  const w = l.view('m1'); assert.deepEqual(w.score, [1, 1]); assert.equal(w.goals.find((g) => g.side === 1).support, 2);
 });
 test('annuler son dernier but', () => {
   const { l } = mk();
