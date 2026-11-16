@@ -560,6 +560,17 @@ function liveTimeline(m, v, edit) {
 }
 // « je saisis ce match » : valable pour l'onglet en cours seulement (se réinitialise à la fermeture)
 const sess = { get: (k) => { try { return sessionStorage.getItem(k) === '1'; } catch { return false; } }, set: (k, v) => { try { v ? sessionStorage.setItem(k, '1') : sessionStorage.removeItem(k); } catch {} } };
+// déroulé saisi par les spectateurs, consultable après le match (replié par défaut, clairement non officiel)
+function liveArchiveHtml(m, v) {
+  if (!v.events?.length) return '';
+  const inner = liveTimeline(m, { ...v, mine: null }, null).replace(/^<h2>[^<]*<\/h2>/, '');
+  const same = m.s1 != null && v.score[0] === m.s1 && v.score[1] === m.s2;
+  const cmp = m.s1 == null ? '' : same ? `<div class="small" style="color:var(--acc);margin:0 0 6px">✓ Score saisi (${v.score[0]} – ${v.score[1]}) conforme au score officiel.</div>` : `<div class="small" style="color:var(--warn);margin:0 0 6px">⚠ Score saisi : ${v.score[0]} – ${v.score[1]} ; score officiel : ${m.s1} – ${m.s2}. Seul le score officiel fait foi.</div>`;
+  return `<details class="arch"><summary><b>Déroulé saisi par des spectateurs</b> <span class="tag warn">non officiel</span> <span class="muted small">· ${v.events.length} saisie${v.events.length > 1 ? 's' : ''}</span></summary>${cmp}${inner}</details>`;
+}
+async function renderArchive(m) {
+  try { const v = await liveApi(m.id); const el = $('#livearch'); if (el) el.innerHTML = liveArchiveHtml(m, v); } catch {}
+}
 let liveTimer = null, liveStop = null;
 async function startLive(m) {
   const box = $('#live'), tl = $('#livetl'); if (!box || !tl) return;
@@ -627,7 +638,7 @@ async function startLive(m) {
     box.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { const [k, s] = b.dataset.sp.split(':'); go({ type: 'sp', k, side: +s }); }));
     box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); } catch {} run(q); }));
   };
-  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); return false; } v = { ...n, mine: n.mine ?? v.mine }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!((box.contains(a) || tl.contains(a)) && a.matches('input,button'))) draw(); return true; };
+  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); const mm = D.matches.find((x) => x.id === m.id); if (mm && m.id !== 'demo') renderArchive({ ...mm, status: 'played' }); return false; } v = { ...n, mine: n.mine ?? v.mine }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!((box.contains(a) || tl.contains(a)) && a.matches('input,button'))) draw(); return true; };
   const poll = async () => { try { apply(await liveApi(m.id)); } catch {} };
   let es = null, tick = 0, clk = null;
   const stop = () => { clearInterval(liveTimer); clearInterval(clk); es?.close(); document.removeEventListener('visibilitychange', onVis); };
@@ -669,9 +680,10 @@ views.match = async (id) => {
   <div class="vs"><a class="tn" href="#/equipe/${m.t1.id}">${esc(m.t1.name)}</a><div class="big">${played ? `${m.s1} - ${m.s2}` : m.status === 'forfeit' ? 'Forfait' : 'vs'}</div><a class="tn" href="#/equipe/${m.t2.id}">${esc(m.t2.name)}</a></div>
   <div class="kv"><span>📅 ${m.date ? esc(dayLong(m.date.slice(0, 10))) : 'Date à définir'}${hhmm(m) ? ' · ' + hhmm(m) : ''}</span>${m.venue ? `<span>📍 ${esc(m.venue)}${m.city ? ', ' + esc(m.city) : ''}</span>` : ''}${m.reason ? `<span class="tag warn">${esc(m.reason)}</span>` : ''}</div>
   <div id="goals" class="small" style="margin-top:8px"></div><p style="margin:12px 0 0"><button class="btn" id="share">Partager</button> ${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="https://www.openstreetmap.org/search?query=${encodeURIComponent(m.venue + ' ' + (m.city || ''))}">Itinéraire</a>` : ''}</p></div></div>
-  <div id="live"></div><div id="livetl"></div><div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
+  <div id="live"></div><div id="livetl"></div><div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div><div id="livearch"></div>`;
   $('#share').onclick = async () => { const data = { title: `${m.t1.name} – ${m.t2.name}`, text: played ? `${m.t1.name} ${m.s1}-${m.s2} ${m.t2.name}` : `${m.t1.name} – ${m.t2.name}`, url: location.href }; try { navigator.share ? await navigator.share(data) : (await navigator.clipboard.writeText(location.href), toast('Lien copié')); } catch {} };
   if (m.status === 'upcoming' || m.status === 'stopped') { if (!demo) preMatch(m); startLive(m); }
+  else if (m.status === 'played') renderArchive(m);
   if (!m.sheet) return;
   try {
     const s = await api('match/' + id);

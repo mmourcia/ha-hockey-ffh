@@ -7,7 +7,8 @@ import crypto from 'node:crypto';
 export const PERIODS = ['Q1', 'Q2', 'Q3', 'Q4', 'PAUSE', 'END'];
 export const RESULTS = ['saved', 'miss', 'but']; // arrêté, non cadré / raté, but
 const VID = /^[a-f0-9]{16,32}$/;
-const KEEP = 36 * 3600e3, MAX_REPORTERS = 30, MAX_GOALS = 30, MAX_EVENTS = 60;
+const KEEP = 300 * 24 * 3600e3, // les saisies restent consultables après le match, jusqu'à la fin de la saison
+   MAX_REPORTERS = 30, MAX_GOALS = 30, MAX_EVENTS = 60;
 const rid = () => crypto.randomBytes(4).toString('hex');
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 const hasLink = (s) => /https?:|www\.|\.(com|fr|net|org)\b/i.test(s);

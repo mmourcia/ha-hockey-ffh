@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.16.0
+- Après le match, le déroulé saisi par les spectateurs reste consultable sous la feuille officielle : bloc replié « Déroulé saisi par des spectateurs · non officiel · N saisies », avec comparaison au score officiel (✓ conforme / ⚠ écart). Les saisies sont conservées jusqu'à la fin de la saison (300 jours) au lieu de 36 h.
+
 ## 1.15.1
 - Synchronisation FFH adaptative : cadence `refresh_minutes` (5 min) de 30 min avant le coup d'envoi d'un match jusqu'à 4 h après ; sinon toutes les 10 min dans les 3 h avant la prochaine fenêtre, 30 min dans les 24 h, 60 min au-delà, avec un réveil pile avant le prochain match. Le panneau HA indique le mode (🟢 match en cours / 🟡 / ⚪) et la fréquence réelle.
 
