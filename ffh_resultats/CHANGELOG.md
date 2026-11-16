@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.11.4
+- « Je saisis ce match » n'est plus mémorisé définitivement : il vaut pour l'onglet en cours (le bouton réapparaît à la réouverture) et est effacé par « Remettre à zéro » de la démo.
+- Bandeau du match centré sur ordinateur.
+
 ## 1.11.3
 - Fiche match à venir : les infos du match (compétition, date, lieu, partage, itinéraire) passent dans un bandeau compact tout en haut, au-dessus du score et du panneau de saisie ; les noms d'équipes ne sont plus répétés quand le direct est affiché.
 

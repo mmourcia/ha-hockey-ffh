@@ -507,6 +507,8 @@ function liveTimeline(m, v) {
     <p class="muted small" style="margin:10px 0 0">Saisi par des spectateurs présents au bord du terrain, sans vérification de la FFH. « Validé par N personnes » = le même fait a été saisi par plusieurs spectateurs indépendants. Le résultat officiel fait foi.</p>
     ${m.id === 'demo' ? '<p class="small" style="margin:8px 0 0">🧪 <b>Match fictif</b> pour essayer la saisie, visible de tous. <button class="link" data-demo-reset>Remettre à zéro</button></p>' : ''}</div>`;
 }
+// « je saisis ce match » : valable pour l'onglet en cours seulement (se réinitialise à la fermeture)
+const sess = { get: (k) => { try { return sessionStorage.getItem(k) === '1'; } catch { return false; } }, set: (k, v) => { try { v ? sessionStorage.setItem(k, '1') : sessionStorage.removeItem(k); } catch {} } };
 let liveTimer = null;
 async function startLive(m) {
   const box = $('#live'), tl = $('#livetl'); if (!box || !tl) return;
@@ -514,7 +516,7 @@ async function startLive(m) {
   let pend = null;
   const draw = () => {
     if (!$('#live')) return;
-    const scoring = store.get(key, false) && inWindow(m);
+    const scoring = sess.get(key) && inWindow(m);
     box.innerHTML = liveTop(m, v, scoring); tl.innerHTML = liveTimeline(m, v);
     app.querySelector('.band')?.classList.toggle('live', liveVisible(m, v)); // bandeau compact : les équipes sont déjà dans le tableau de score
     // celui qui saisit garde son panneau en haut et la frise en bas de page ; celui qui regarde a la frise juste sous le score
@@ -522,9 +524,9 @@ async function startLive(m) {
     box.querySelector('#who')?.addEventListener('input', (e) => (draft.who = e.target.value));
     box.querySelector('#txt')?.addEventListener('input', (e) => (draft.txt = e.target.value));
     const act = async (body) => { try { v = await liveApi(m.id, body); if (['goal', 'resolve', 'note'].includes(body.action)) { if (body.action !== 'note') draft.who = ''; draft.txt = ''; } draw(); toast('Enregistré'); } catch (e) { toast(e.message); } };
-    box.querySelector('[data-start]')?.addEventListener('click', () => { store.set(key, true); draw(); window.scrollTo(0, 0); });
-    box.querySelector('[data-stop]')?.addEventListener('click', () => { store.set(key, false); draw(); });
-    tl.querySelector('[data-demo-reset]')?.addEventListener('click', async () => { try { v = await liveApi('demo', { action: 'reset' }); draw(); toast('Démo remise à zéro'); } catch (e) { toast(e.message); } });
+    box.querySelector('[data-start]')?.addEventListener('click', () => { sess.set(key, true); draw(); window.scrollTo(0, 0); });
+    box.querySelector('[data-stop]')?.addEventListener('click', () => { sess.set(key, false); draw(); });
+    tl.querySelector('[data-demo-reset]')?.addEventListener('click', async () => { try { v = await liveApi('demo', { action: 'reset' }); sess.set(key, false); draw(); toast('Démo remise à zéro'); } catch (e) { toast(e.message); } });
     box.querySelectorAll('[data-pp]').forEach((b) => (b.onclick = () => act({ action: 'period', p: b.dataset.pp })));
     box.querySelector('[data-undo]')?.addEventListener('click', () => act({ action: 'undo' }));
     box.querySelector('[data-note]')?.addEventListener('click', () => act({ action: 'note', txt: draft.txt }));
