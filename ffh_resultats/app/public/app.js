@@ -51,6 +51,7 @@ const todayKey = () => localKey();
 const dayDate = (k) => new Date(k + 'T12:00:00');
 const dayLong = (k) => { const s = dayDate(k).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }); return k === todayKey() ? 'Aujourd’hui – ' + s : s; };
 const hhmm = (m) => (m.date && !m.bye && m.date.slice(11, 16) !== '00:00' ? m.date.slice(11, 16).replace(':', 'h') : '');
+const dateBlock = (m, tag) => { const d = dayDate(m.date.slice(0, 10)); const dow = d.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', ''); const mon = d.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', ''); return `<b>${dow} ${d.getDate()}</b>${mon}${tag ? `<span class="h">${tag}</span>` : ''}`; };
 const shortDay = (m) => (m.date ? dayDate(m.date.slice(0, 10)).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '–');
 const sexeLabel = (s) => ({ M: 'Hommes', F: 'Femmes', FM: 'Mixte' }[s] || s);
 const discLabel = (d) => ({ GAZON: 'Gazon', SALLE: 'Salle', DEVELOP: 'Développement' }[d] || d);
@@ -61,7 +62,8 @@ const isLive = (m) => { if (m.status !== 'upcoming' || !m.date) return false; co
 function matchCard(m, { showComp = false } = {}) {
   const played = m.status === 'played';
   const w = played ? (m.s1 > m.s2 ? 1 : m.s2 > m.s1 ? 2 : 0) : 0;
-  const when = played || m.status === 'forfeit' ? `<b>${m.status === 'forfeit' ? 'FORF.' : 'FIN'}</b>${shortDay(m)}` : m.status === 'cancelled' ? `<b>Annulé</b>${shortDay(m)}` : m.status === 'stopped' ? `<b>Arrêté</b>${shortDay(m)}` : isLate(m) ? `<b>?</b>${shortDay(m)}` : isLive(m) ? `<b style="color:var(--live)">● EN COURS</b>${hhmm(m)}` : `<b>${hhmm(m) || '—'}</b>${shortDay(m)}`;
+  const hh = hhmm(m);
+  const when = !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
   const comp = IDX.comp[m.comp];
   const name = (t, i) => `<div class="${w === i ? 'win' : ''}"><span class="n">${esc(t.name)}</span>${isFavTeam(t) ? ' <span style="color:#f5b301">★</span>' : ''}</div>`;
   const score = m.bye ? '' : played ? `<div class="${w === 2 ? 'lose' : ''}">${m.s1}</div><div class="${w === 1 ? 'lose' : ''}">${m.s2}</div>` : '';
@@ -79,12 +81,29 @@ const star = (on, attr) => `<button class="star ${on ? 'on' : ''}" ${attr} aria-
 // ---------- vues ----------
 const views = {};
 
+const WX = (c) => (c === 0 ? '☀️' : c <= 2 ? '🌤️' : c === 3 ? '☁️' : c <= 48 ? '🌫️' : c <= 57 ? '🌦️' : c <= 67 ? '🌧️' : c <= 77 ? '❄️' : c <= 82 ? '🌦️' : c <= 86 ? '🌨️' : '⛈️');
+const mapsUrl = (m) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([m.venue, m.city].filter(Boolean).join(' '))}`;
+const shareText = (m) => `🏑 ${m.t1.name} – ${m.t2.name}\n📅 ${m.date ? dayLong(m.date.slice(0, 10)) : ''}${hhmm(m) ? ' à ' + hhmm(m) : ''}${m.venue ? `\n📍 ${m.venue}${m.city ? ', ' + m.city : ''}` : ''}\n${location.origin}/#/match/${m.id}`;
+function weekBlock() {
+  const now = Date.now(), t = (m) => new Date((m.date || '').replace(' ', 'T')).getTime();
+  const ms = D.matches.filter((m) => !m.bye && m.date && isFavMatch(m) && (m.status === 'upcoming') && t(m) > now - 2 * 3600e3 && t(m) < now + 8 * 864e5).sort((x, y) => t(x) - t(y));
+  if (!ms.length) return '';
+  return `<h2>Cette semaine<a href="#/agenda">📅 Agenda</a></h2>${ms.map((m) => `<div class="card wk">${matchCard(m, { showComp: true })}<div class="wk-i small">${m.venue ? `<span>📍 ${esc(m.venue)}${m.city ? ', ' + esc(m.city) : ''}</span>` : '<span class="muted">Lieu à confirmer</span>'}<span class="muted" data-wx="${esc(m.city || '')}" data-day="${m.date.slice(0, 10)}"></span></div><div class="wk-a">${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="${mapsUrl(m)}">🧭 Itinéraire</a>` : ''}<button class="btn" data-share="${m.id}">↗ Partager</button></div></div>`).join('')}`;
+}
+function wireWeek() {
+  app.querySelectorAll('[data-share]').forEach((b) => (b.onclick = async () => { const m = D.matches.find((x) => x.id === b.dataset.share); if (!m) return; try { navigator.share ? await navigator.share({ title: `${m.t1.name} – ${m.t2.name}`, text: shareText(m) }) : (await navigator.clipboard.writeText(shareText(m)), toast('Infos du match copiées')); } catch {} }));
+  app.querySelectorAll('[data-wx]').forEach(async (el) => {
+    if (!el.dataset.wx) return;
+    try { const w = await api(`weather?city=${encodeURIComponent(el.dataset.wx)}&day=${el.dataset.day}`); if (w.max != null) el.textContent = `${WX(w.code)} ${w.min}°/${w.max}° · pluie ${w.rain ?? 0} % · vent ${w.wind} km/h`; } catch {}
+  });
+}
 views.home = async () => {
   const t = (m) => new Date((m.date || '').replace(' ', 'T')).getTime();
   const now = Date.now();
   let h = '';
-  if (!hasFavs()) h += `<div class="hero"><h1>Tous les résultats du hockey français</h1><p>Gazon et salle, toutes divisions, sans rien choisir. Suivez vos équipes précises (ex. Élite Hommes, U13 Filles) pour un fil perso.</p><a class="btn primary" href="#/equipes">⭐ Choisir mes équipes</a></div>`;
+  if (!hasFavs()) h += `<div class="hero"><h1>Quelle est votre équipe ?</h1><p>Tapez le nom de votre club ou de votre équipe, puis touchez l’étoile : vos matchs, classements et joueurs apparaissent ici.</p><input class="search" id="hq" type="search" placeholder="Ex. Lille, Wattignies U13, Marcq…" autocomplete="off"><div id="hr" class="hero-res"></div></div>`;
   else {
+    h += weekBlock();
     h += `<h2>Mes équipes<a href="#/equipes">Gérer</a></h2><div class="card">`;
     h += favs.teams.map((id) => {
       const tm = IDX.teams[id]; if (!tm) return '';
@@ -95,6 +114,7 @@ views.home = async () => {
       return `<div class="fteam"><a class="fh" href="#/equipe/${id}"><b>${esc(tm.name)}</b><span class="muted small">${esc(teamLabel(tm))} · ${esc(teamMeta(tm))}</span><span class="rank small" data-rank="${esc(id)}" data-poule="${esc(pid || '')}"></span></a><div class="qlinks"><a href="#/equipe/${id}/classement"><span>📊</span>Classement</a><a href="#/equipe/${id}/matchs"><span>📅</span>Calendrier</a><a href="#/equipe/${id}/joueurs"><span>👥</span>Joueurs</a></div>${last ? matchCard(last) : ''}${next ? matchCard(next) : ''}${!last && !next ? '<div class="pad muted small">Aucun match programmé.</div>' : ''}</div>`;
     }).join('');
     h += '</div>';
+    h += '<p><a class="btn" href="#/agenda">📅 Mes matchs dans mon agenda Google / Apple</a></p>';
   }
   const tk = todayKey();
   const keys = Object.keys(IDX.byDay).sort();
@@ -106,6 +126,17 @@ views.home = async () => {
   h += `<h2>À la une<a href="#/actus">Toutes les actus</a></h2><div class="card" id="home-news"><div class="loading">…</div></div>`;
   h += '<p class="muted small center" style="margin-top:18px">📊 La fréquentation est mesurée de façon anonyme (aucun nom, aucune adresse IP).</p>';
   app.innerHTML = h;
+  wireWeek();
+  if (!hasFavs()) {
+    const all = Object.values(IDX.teams), clubName = (t) => (t.club && IDX.club[t.club]?.name) || '';
+    const draw = () => {
+      const q = norm($('#hq').value.trim()); if (q.length < 2) { $('#hr').innerHTML = ''; return; }
+      const list = all.filter((t) => q.split(/\s+/).every((w) => norm(`${t.name} ${clubName(t)} ${teamLabel(t)}`).includes(w))).sort((x, y) => x.name.localeCompare(y.name) || (teamComps(x)[0]?.order ?? 99) - (teamComps(y)[0]?.order ?? 99)).slice(0, 12);
+      $('#hr').innerHTML = list.length ? `<div class="card list">${list.map(teamRow).join('')}</div>` : '<div class="empty">Aucune équipe trouvée.</div>';
+      $('#hr').querySelectorAll('[data-team]').forEach((b) => (b.onclick = (ev) => { ev.preventDefault(); toggleTeam(b.dataset.team); views.home(); }));
+    };
+    $('#hq').oninput = draw;
+  }
   app.querySelectorAll('[data-rank]').forEach(async (el) => {
     if (!el.dataset.poule) return;
     try {
@@ -117,7 +148,7 @@ views.home = async () => {
   api('news').then((n) => { $('#home-news').innerHTML = n.slice(0, 2).map((x) => newsCard(x)).join(''); }).catch(() => { $('#home-news').innerHTML = '<div class="pad muted">Actualités indisponibles.</div>'; });
 };
 
-let mState = { disc: store.get('f.disc', ''), sexe: store.get('f.sexe', ''), fav: false, q: '' };
+let mState = { disc: store.get('f.disc', ''), sexe: store.get('f.sexe', ''), fav: false, q: '', open: false };
 views.matchs = async (day) => {
   const keys = Object.keys(IDX.byDay).sort();
   const tk = todayKey();
@@ -125,7 +156,7 @@ views.matchs = async (day) => {
   const chip = (k, v, label) => `<button class="chip ${mState[k] === v ? 'on' : ''}" data-f="${k}" data-v="${v}">${label}</button>`;
   const near = keys.filter((k) => Math.abs(dayDate(k) - dayDate(day)) < 40 * 864e5);
   app.innerHTML = `<input class="search" id="mq" type="search" placeholder="Équipe, club, compétition, ville…" value="${esc(mState.q)}">
-  <div class="chips">${chip('disc', '', 'Tout')}${chip('disc', 'GAZON', 'Gazon')}${chip('disc', 'SALLE', 'Salle')}<span style="width:8px"></span>${chip('sexe', '', 'H + F')}${chip('sexe', 'M', 'Hommes')}${chip('sexe', 'F', 'Femmes')}${hasFavs() ? `<span style="width:8px"></span><button class="chip ${mState.fav ? 'on' : ''}" data-fav>★ Mes équipes</button>` : ''}</div>
+  ${(() => { const n = (mState.disc ? 1 : 0) + (mState.sexe ? 1 : 0) + (mState.fav ? 1 : 0); return `<div class="chips">${hasFavs() ? `<button class="chip ${mState.fav ? 'on' : ''}" data-fav>★ Mes équipes</button>` : ''}<button class="chip ${n && !mState.fav || mState.open ? 'on' : ''}" data-open>⚙ Filtres${n ? ' · ' + n : ''}</button></div>${mState.open ? `<div class="card pad fpanel"><div class="small muted">Discipline</div><div class="chips">${chip('disc', '', 'Tout')}${chip('disc', 'GAZON', 'Gazon')}${chip('disc', 'SALLE', 'Salle')}</div><div class="small muted">Catégorie</div><div class="chips">${chip('sexe', '', 'H + F')}${chip('sexe', 'M', 'Hommes')}${chip('sexe', 'F', 'Femmes')}</div></div>` : ''}`; })()}
   <div class="chips days" id="days">${near.map((k) => { const d = dayDate(k); return `<a class="chip ${k === day ? 'on' : ''} ${k === tk ? 'today' : ''}" href="#/matchs/${k}">${d.toLocaleDateString('fr-FR', { weekday: 'short' })}<small>${d.getDate()}/${pad(d.getMonth() + 1)}</small></a>`; }).join('')}</div>
   <h2>${esc(dayLong(day))}</h2><div id="mlist"></div>`;
   $('#days .on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -141,6 +172,7 @@ views.matchs = async (day) => {
   draw();
   $('#mq').oninput = (e) => { mState.q = e.target.value; draw(); };
   app.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => { mState[b.dataset.f] = b.dataset.v; store.set('f.' + b.dataset.f, b.dataset.v); views.matchs(day); }));
+  $('[data-open]')?.addEventListener('click', () => { mState.open = !mState.open; views.matchs(day); });
   $('[data-fav]')?.addEventListener('click', () => { mState.fav = !mState.fav; views.matchs(day); });
 };
 
@@ -210,13 +242,14 @@ views.comp = async (id, pouleId) => {
 
 const teamComps = (t) => [...t.comps].map((id) => IDX.comp[id]).filter(Boolean);
 const teamLabel = (t) => teamComps(t).map((c) => c.name).slice(0, 2).join(' · ');
+const teamSub = (t) => [teamMeta(t), teamComps(t)[0]?.name].filter(Boolean).join(' · ');
 const teamMeta = (t) => { const c = teamComps(t)[0]; return c ? `${discLabel(c.disc)} · ${sexeLabel(c.sexe)}` : ''; };
 function toggleTeam(id) { const i = favs.teams.indexOf(id); i < 0 ? favs.teams.push(id) : favs.teams.splice(i, 1); saveFavs(); track('fav', { team: id, on: i < 0 }); if (i < 0) askNotif(); }
-const teamRow = (t) => `<div class="row"><a class="grow tl" href="#/equipe/${t.id}"><b>${esc(t.name)}</b><span class="muted small">${esc(teamLabel(t))} · ${esc(teamMeta(t))}</span></a>${star(favs.teams.includes(t.id), `data-team="${t.id}"`)}</div>`;
+const teamRow = (t) => `<div class="row"><a class="grow tl" href="#/equipe/${t.id}"><b>${esc(t.name)}</b><span class="muted small">${esc(teamMeta(t))} · ${esc(teamComps(t).map((c) => c.name).slice(0, 2).join(' · '))}</span></a>${star(favs.teams.includes(t.id), `data-team="${t.id}"`)}</div>`;
 let tState = { disc: '', sexe: '', q: '' };
 views.equipes = async () => {
   const chip = (k, v, l) => `<button class="chip ${tState[k] === v ? 'on' : ''}" data-f="${k}" data-v="${v}">${l}</button>`;
-  app.innerHTML = `<h1>Mes équipes</h1><p class="muted small" style="margin:-6px 0 10px">Chaque équipe est distincte : Élite Hommes, Élite Dames, U13 Filles… Cochez l’étoile des équipes que vous suivez.</p>
+  app.innerHTML = `<h1>Mes équipes</h1><p class="muted small" style="margin:-6px 0 10px">Chaque équipe est distincte : Élite Hommes, Élite Dames, U13 Filles… Cochez l’étoile des équipes que vous suivez.${hasFavs() ? ' <a href="#/agenda" style="color:var(--acc)">📅 Les ajouter à mon agenda</a>' : ''}</p>
   <input class="search" id="cq" type="search" placeholder="Nom du club, de l’équipe, ville ou compétition…" autocomplete="off" value="${esc(tState.q)}">
   <div class="chips">${chip('disc', '', 'Tout')}${chip('disc', 'GAZON', 'Gazon')}${chip('disc', 'SALLE', 'Salle')}<span style="width:8px"></span>${chip('sexe', '', 'H + F')}${chip('sexe', 'M', 'Hommes')}${chip('sexe', 'F', 'Femmes')}</div><div id="cl"></div>`;
   const all = Object.values(IDX.teams);
@@ -345,6 +378,28 @@ views.club = async (code) => {
   app.querySelectorAll('[data-team]').forEach((b) => (b.onclick = () => { toggleTeam(b.dataset.team); views.club(code); }));
 };
 
+views.agenda = async () => {
+  const teams = favs.teams.filter((id) => IDX.teams[id]);
+  const cal = store.get('cal', { prefix: {}, alarm: 60 });
+  if (!teams.length) { app.innerHTML = '<h1>Agenda</h1><div class="empty">Choisissez d’abord vos équipes favorites.<br><a class="btn primary" href="#/equipes">⭐ Choisir mes équipes</a></div>'; return; }
+  const pre = (id) => { const p = (cal.prefix[id] || '').trim(); return p ? p + ' ' : ''; };
+  const url = () => `${location.origin}/api/cal.ics?${teams.map((id) => 't=' + encodeURIComponent(id + '|' + pre(id))).join('&')}&alarm=${cal.alarm}`;
+  app.innerHTML = `<h1>Mes matchs dans mon agenda</h1><p class="muted small" style="margin:-6px 0 10px">Abonnez-vous une fois : les matchs de vos équipes arrivent dans Google Agenda (ou Apple, Outlook…) et se mettent à jour tout seuls (horaire, lieu, score).</p>
+  <h2>Préfixe par équipe <span class="muted small" style="font-weight:400">(optionnel)</span></h2><div class="card list">${teams.map((id) => `<div class="row"><div class="grow"><b>${esc(IDX.teams[id].name)}</b><div class="muted small">${esc(teamSub(IDX.teams[id]))}</div><input class="search mini" data-p="${esc(id)}" placeholder="Ex. Clément –" value="${esc(cal.prefix[id] || '')}"></div></div>`).join('')}</div>
+  <h2>Rappel</h2><select class="search" id="al">${[[0, 'Aucun rappel'], [30, '30 minutes avant'], [60, '1 heure avant'], [120, '2 heures avant'], [1440, 'La veille']].map(([v, l]) => `<option value="${v}" ${+cal.alarm === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+  <h2>S’abonner</h2><div class="card pad"><p style="margin:0 0 8px"><a class="btn primary" id="gc" target="_blank" rel="noopener">Ajouter à Google Agenda</a> <a class="btn" id="wc">Apple / Outlook</a> <button class="btn" id="cp">Copier le lien</button></p>
+  <div class="muted small">Exemple de titre : <b id="ex"></b></div><div class="muted small" style="margin-top:6px">Google Agenda actualise les agendas abonnés environ toutes les 12 à 24 h. Ce lien ne contient que la liste de vos équipes, aucune donnée personnelle.</div></div>`;
+  const upd = () => {
+    const u = url(); const w = u.replace(/^https?:/, 'webcal:');
+    $('#gc').href = 'https://calendar.google.com/calendar/u/0/r?cid=' + encodeURIComponent(w); $('#wc').href = w;
+    const t = IDX.teams[teams[0]]; $('#ex').textContent = `${pre(teams[0])}${t.name} vs …`;
+    $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(u); toast('Lien copié : collez-le dans « Ajouter par URL »'); } catch { prompt('Copiez ce lien', u); } };
+  };
+  app.querySelectorAll('[data-p]').forEach((i) => (i.oninput = () => { cal.prefix[i.dataset.p] = i.value; store.set('cal', cal); upd(); }));
+  $('#al').onchange = (e) => { cal.alarm = +e.target.value; store.set('cal', cal); upd(); };
+  upd();
+};
+
 let eTab = 'matchs';
 views.equipe = async (id, tab) => {
   const t = IDX.teams[id]; if (!t) return notFound();
@@ -354,7 +409,7 @@ views.equipe = async (id, tab) => {
   const compId = id.split(':')[0], pouleId = (ms.find((m) => m.poule) || {}).poule;
   const TABS = [['matchs', 'Matchs'], ['classement', 'Classement'], ['joueurs', 'Joueurs']];
   app.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><h1 style="margin-bottom:0">${esc(t.name)}</h1><div class="muted small">${esc(teamMeta(t))}</div><div class="small">${[...t.comps].map((c) => `<a href="#/comp/${c}" style="color:var(--acc)">${esc(IDX.comp[c]?.name)}</a>`).join(' · ')}</div></div>${star(on, 'id="fav"')}</div>
-  ${t.club && IDX.club[t.club] ? `<p><a class="btn" href="#/club/${t.club}">Voir le club ${esc(IDX.club[t.club].name)}</a></p>` : ''}
+  <p>${t.club && IDX.club[t.club] ? `<a class="btn" href="#/club/${t.club}">Voir le club</a> ` : ''}${on ? '<a class="btn" href="#/agenda">📅 Dans mon agenda</a>' : ''}</p>
   <div class="tabsub">${TABS.map(([k, l]) => `<a data-t="${k}" class="${eTab === k ? 'on' : ''}" href="#/equipe/${id}/${k}">${l}</a>`).join('')}</div><div id="et"></div>`;
   $('#fav').onclick = () => { toggleTeam(id); views.equipe(id, eTab); };
   const box = $('#et');
@@ -376,6 +431,22 @@ views.equipe = async (id, tab) => {
   }
 };
 
+async function preMatch(m) {
+  const box = $('#pre'); if (!box) return;
+  const pl = (id) => D.matches.filter((x) => !x.bye && x.status === 'played' && (x.t1.id === id || x.t2.id === id)).sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+  const form = (id) => pl(id).slice(0, 5).reverse().map((x) => { const [f, c] = x.t1.id === id ? [x.s1, x.s2] : [x.s2, x.s1]; const r = f > c ? 'V' : f < c ? 'D' : 'N'; return `<span class="fm ${r}" title="${esc(x.t1.name)} ${x.s1}-${x.s2} ${esc(x.t2.name)}">${r}</span>`; }).join('') || '<span class="muted">—</span>';
+  const ids = [m.t1.id, m.t2.id];
+  const [st, p1, p2] = await Promise.all([m.poule ? api('poule/' + m.poule).catch(() => null) : null, ...ids.map((id) => api(`players?team=${encodeURIComponent(id)}&limit=200&sort=goals`).catch(() => null))]);
+  const row = (id) => st?.standings.find((r) => `${m.comp}:${r.team.id}` === id);
+  const pos = (id) => { const r = row(id); return r ? `<b>${r.pos}${r.pos === 1 ? 'er' : 'e'}</b> · ${r.pts} pts` : '—'; };
+  const att = (id) => { const r = row(id); return r && r.j ? `${(r.bp / r.j).toFixed(1)} but${r.bp / r.j >= 2 ? 's' : ''} / match` : '—'; };
+  const def = (id) => { const r = row(id); return r && r.j ? `${(r.bc / r.j).toFixed(1)} encaissé${r.bc / r.j >= 2 ? 's' : ''} / match` : '—'; };
+  const top = (p) => { const r = p?.rows.find((x) => x.goals > 0); return r ? `${esc(r.name)} <span class="muted">(${r.goals})</span>` : '—'; };
+  const cards = (p) => { if (!p?.rows.length) return '—'; const c = (r) => r.green + r.yellow + r.red; const tot = p.rows.reduce((s, r) => s + c(r), 0); const w = [...p.rows].sort((x, y) => c(y) - c(x))[0]; return `${tot}${c(w) ? ` <span class="muted">· ${esc(w.name)} (${c(w)})</span>` : ''}`; };
+  const h2h = D.matches.filter((x) => !x.bye && x.status === 'played' && ((x.t1.id === ids[0] && x.t2.id === ids[1]) || (x.t1.id === ids[1] && x.t2.id === ids[0]))).sort((x, y) => (x.date || '').localeCompare(y.date || ''));
+  const R = (l, f) => `<tr><td class="muted small">${l}</td><td>${f(ids[0], p1)}</td><td>${f(ids[1], p2)}</td></tr>`;
+  box.innerHTML = `<h2>Avant le match</h2><div class="card pre"><table class="t"><tr><th></th><th class="l">${esc(m.t1.name)}</th><th class="l">${esc(m.t2.name)}</th></tr>${R('Classement', pos)}${R('5 derniers', form)}${R('Attaque', att)}${R('Défense', def)}${R('Meilleur buteur', (id, p) => top(p))}${R('Cartons', (id, p) => cards(p))}</table></div>${h2h.length ? `<h2>Déjà rencontrés cette saison</h2><div class="card">${h2h.map((x) => matchCard(x, { showComp: true })).join('')}</div>` : ''}`;
+}
 const isStaff = (p) => !p.gk && !/^\d+$/.test(String(p.shirt || '').trim());
 views.match = async (id) => {
   const m = D.matches.find((x) => x.id === id); if (!m) return notFound();
@@ -385,8 +456,9 @@ views.match = async (id) => {
   <div class="vs"><a class="tn" href="#/equipe/${m.t1.id}">${esc(m.t1.name)}</a><div class="big">${played ? `${m.s1} - ${m.s2}` : m.status === 'forfeit' ? 'Forfait' : 'vs'}</div><a class="tn" href="#/equipe/${m.t2.id}">${esc(m.t2.name)}</a></div>
   <div class="kv"><span>📅 ${m.date ? esc(dayLong(m.date.slice(0, 10))) : 'Date à définir'}${hhmm(m) ? ' · ' + hhmm(m) : ''}</span>${m.venue ? `<span>📍 ${esc(m.venue)}${m.city ? ', ' + esc(m.city) : ''}</span>` : ''}${m.reason ? `<span class="tag warn">${esc(m.reason)}</span>` : ''}</div>
   <div id="goals" class="small" style="margin-top:8px"></div><p style="margin:12px 0 0"><button class="btn" id="share">Partager</button> ${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="https://www.openstreetmap.org/search?query=${encodeURIComponent(m.venue + ' ' + (m.city || ''))}">Itinéraire</a>` : ''}</p></div></div>
-  <div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
+  <div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
   $('#share').onclick = async () => { const data = { title: `${m.t1.name} – ${m.t2.name}`, text: played ? `${m.t1.name} ${m.s1}-${m.s2} ${m.t2.name}` : `${m.t1.name} – ${m.t2.name}`, url: location.href }; try { navigator.share ? await navigator.share(data) : (await navigator.clipboard.writeText(location.href), toast('Lien copié')); } catch {} };
+  if (m.status === 'upcoming' || m.status === 'stopped') preMatch(m);
   if (!m.sheet) return;
   try {
     const s = await api('match/' + id);
@@ -410,11 +482,12 @@ views.search = async () => {
   const go = () => {
     const q = norm($('#sq').value.trim()); if (q.length < 2) { $('#sr').innerHTML = '<div class="empty">Tapez au moins 2 lettres.</div>'; return; }
     const clubs = D.clubs.filter((c) => norm(c.name + ' ' + (c.city || '')).includes(q)).slice(0, 8);
-    const teams = Object.values(IDX.teams).filter((t) => norm(t.name).includes(q)).slice(0, 10);
+    const clubName = (t) => (t.club && IDX.club[t.club]?.name) || '';
+    const teams = Object.values(IDX.teams).filter((t) => q.split(/\s+/).every((w) => norm(`${t.name} ${clubName(t)} ${teamLabel(t)}`).includes(w))).sort((x, y) => x.name.localeCompare(y.name) || (teamComps(x)[0]?.order ?? 99) - (teamComps(y)[0]?.order ?? 99)).slice(0, 30);
     const comps = D.comps.filter((c) => norm(c.name).includes(q)).slice(0, 8);
     const sec = (t, arr) => (arr.length ? `<h2>${t}</h2><div class="card list">${arr.join('')}</div>` : '');
     $('#sr').innerHTML = sec('Clubs', clubs.map((c) => `<a href="#/club/${c.code}"><div class="grow"><div>${esc(c.name)}</div><div class="muted small">${esc(c.city || '')}</div></div><span class="chev">›</span></a>`)) +
-      sec('Équipes', teams.map((t) => `<a href="#/equipe/${t.id}"><div class="grow"><div>${esc(t.name)}</div></div><span class="chev">›</span></a>`)) +
+      sec('Équipes', teams.map((t) => `<a href="#/equipe/${t.id}"><div class="grow"><div><b>${esc(t.name)}</b></div><div class="muted small">${esc(teamSub(t))}</div></div><span class="chev">›</span></a>`)) +
       sec('Compétitions', comps.map((c) => `<a href="#/comp/${c.id}"><div class="grow"><div>${esc(c.name)}</div><div class="muted small">${discLabel(c.disc)} · ${sexeLabel(c.sexe)}</div></div><span class="chev">›</span></a>`)) || '<div class="empty">Aucun résultat.</div>';
     if (!clubs.length && !teams.length && !comps.length) $('#sr').innerHTML = '<div class="empty">Aucun résultat.</div>';
   };
@@ -425,9 +498,9 @@ const notFound = () => (app.innerHTML = '<div class="empty">Page introuvable. <a
 // ---------- routeur ----------
 async function route(keep) {
   const [, name = '', a, b] = location.hash.replace(/^#/, '').split('/');
-  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs', joueurs: 'joueurs', joueur: 'joueur', arbitres: 'arbitres', arbitre: 'arbitre' }[name] || 'home';
-  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', joueurs: 'comps', joueur: 'comps', arbitres: 'comps', arbitre: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', actus: 'actus', search: 'home' }[v];
-  const root = ['home', 'matchs', 'comps', 'equipes', 'actus', 'buteurs', 'joueurs', 'arbitres'].includes(v);
+  const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs', joueurs: 'joueurs', joueur: 'joueur', arbitres: 'arbitres', arbitre: 'arbitre', agenda: 'agenda' }[name] || 'home';
+  const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', joueurs: 'comps', joueur: 'comps', arbitres: 'comps', arbitre: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', agenda: 'equipes', actus: 'home', search: 'home' }[v];
+  const root = ['home', 'matchs', 'comps', 'equipes', 'actus', 'buteurs', 'joueurs', 'arbitres', 'agenda'].includes(v);
   $('#back').hidden = root;
   document.querySelectorAll('.tabs a').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
   if (!D) { app.innerHTML = '<div class="loading">Chargement des résultats…</div>'; await load(true); }
@@ -472,13 +545,19 @@ function bellState() { $('#bell').classList.toggle('on', 'Notification' in windo
 $('#bell').onclick = async () => { if (!('Notification' in window)) return toast('Notifications non supportées sur cet appareil'); if (Notification.permission === 'denied') return toast('Notifications bloquées dans les réglages'); if (Notification.permission === 'default') await Notification.requestPermission(); bellState(); const ok = Notification.permission === 'granted' && (await syncPush(true)); toast(ok ? 'Alertes activées, même application fermée' : Notification.permission === 'granted' ? 'Alertes actives (application ouverte uniquement)' : 'Alertes désactivées'); };
 function diffAlerts() {
   const snap = store.get('snap', null); const cur = {};
-  D.matches.filter(isFavMatch).forEach((m) => (cur[m.id] = `${m.s1}-${m.s2}-${m.status}`));
-  if (snap) for (const m of D.matches.filter(isFavMatch)) {
-    if (snap[m.id] !== undefined && snap[m.id] !== cur[m.id] && m.status === 'played') {
-      const body = `${m.t1.name} ${m.s1} - ${m.s2} ${m.t2.name}`;
-      toast('⚽ ' + body);
-      if ('Notification' in window && Notification.permission === 'granted') navigator.serviceWorker?.ready.then((r) => r.showNotification('Résultat FFH', { body, icon: '/icon.svg', tag: m.id, data: { url: '/#/match/' + m.id } }));
-    }
+  const mine = D.matches.filter(isFavMatch);
+  mine.forEach((m) => (cur[m.id] = `${m.s1}-${m.s2}-${m.status}|${m.date || ''}|${m.venue || ''}`));
+  const notify = (m, title, body) => {
+    toast(body);
+    if ('Notification' in window && Notification.permission === 'granted') navigator.serviceWorker?.ready.then((r) => r.showNotification(title, { body, icon: '/icon.svg', tag: m.id, data: { url: '/#/match/' + m.id } }));
+  };
+  if (snap) for (const m of mine) {
+    const old = snap[m.id]; if (old === undefined || old === cur[m.id]) continue;
+    const [os, od = null, ov = null] = old.split('|'), [cs] = cur[m.id].split('|');
+    const names = `${m.t1.name} – ${m.t2.name}`;
+    if (os !== cs && m.status === 'played') notify(m, 'Résultat FFH', `⚽ ${m.t1.name} ${m.s1} - ${m.s2} ${m.t2.name}`);
+    else if (od !== null && m.status === 'upcoming' && (od !== (m.date || '') || ov !== (m.venue || ''))) notify(m, 'Match modifié', `🕒 ${names} : ${od !== (m.date || '') ? `nouvel horaire ${m.date ? dayLong(m.date.slice(0, 10)) + (hhmm(m) ? ' ' + hhmm(m) : '') : 'à définir'}` : `nouveau lieu ${m.venue || 'à définir'}`}`);
+    else if (os !== cs && m.status === 'cancelled') notify(m, 'Match annulé', `❌ ${names} annulé`);
   }
   store.set('snap', cur);
 }

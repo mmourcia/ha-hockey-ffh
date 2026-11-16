@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0
+- Ergonomie : la date passe devant l'heure sur les cartes de match ; 4 onglets (Actus accessible depuis l'accueil) ; filtres de la page Matchs repliés derrière un bouton ; premier lancement guidé (« Quelle est votre équipe ? »).
+- Équipes homonymes : compétition et catégorie affichées partout (recherche, listes), recherche aussi par club.
+- Agenda : abonnement ICS (Google Agenda, Apple, Outlook) aux matchs des équipes favorites, préfixe personnalisé par équipe, rappel, mise à jour automatique des horaires/lieux/scores (page #/agenda).
+- Accueil « Cette semaine » : matchs à venir des favoris avec lieu, itinéraire, météo et partage aux autres parents ; alerte quand l'horaire ou le lieu d'un match change.
+- Fiche match à venir : « Avant le match » (classement, 5 derniers, attaque/défense, meilleur buteur, cartons, confrontations de la saison).
+
 ## 1.8.1
 - Fiche équipe, onglet Joueurs : même tri (buts, total des cartons, verts, jaunes, rouges, matchs) ; total « Σ » affiché partout.
 

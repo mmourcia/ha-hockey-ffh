@@ -1,5 +1,6 @@
 // Backend FFH : proxy + cache + normalisation des API officielles (championnats.ffhockey.org/rest2)
 // Zéro dépendance. Usage : node server.js  (PORT=8080)
+import { buildIcs, parseTeams } from './ics.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -248,6 +249,28 @@ const api = async (req, res, url) => {
       if (p[1] === 'subscribe') { push.subscribe(j.subscription, j.favs); return send(req, res, 200, { ok: true }); }
       if (p[1] === 'unsubscribe') { push.unsubscribe(j.endpoint); return send(req, res, 200, { ok: true }); }
       if (p[1] === 'pending') return send(req, res, 200, push.take(j.endpoint), noCache);
+    }
+    if (p[0] === 'cal.ics') {
+      const idx = await ensure(season);
+      const teams = parseTeams(url.searchParams.getAll('t'));
+      if (!teams.length) return send(req, res, 400, 'Aucune équipe (paramètre t=id|préfixe)');
+      const comps = Object.fromEntries(idx.comps.map((c) => [c.id, c]));
+      const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+      const base = host ? `${req.headers['x-forwarded-proto'] || 'https'}://${host}` : '';
+      const body = buildIcs(idx.matches, comps, teams, { base, alarm: Math.min(Math.max(+url.searchParams.get('alarm') || 0, 0), 1440), name: url.searchParams.get('name') || 'Hockey FFH' });
+      return send(req, res, 200, body, { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': 'inline; filename="hockey-ffh.ics"', 'cache-control': 'public, max-age=600' });
+    }
+    if (p[0] === 'weather') {
+      const city = (url.searchParams.get('city') || '').slice(0, 80), day = url.searchParams.get('day') || '';
+      if (!city || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return send(req, res, 400, { error: 'city et day requis' });
+      const w = await cached(`wx${city}${day}`, 3 * 3600e3, async () => {
+        const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&country_code=FR&language=fr`, { signal: AbortSignal.timeout(8e3) })).json();
+        const loc = g.results?.[0]; if (!loc) return null;
+        const f = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&timezone=Europe%2FParis&start_date=${day}&end_date=${day}`, { signal: AbortSignal.timeout(8e3) })).json();
+        const d = f.daily; if (!d?.time?.length) return null;
+        return { code: d.weather_code[0], max: Math.round(d.temperature_2m_max[0]), min: Math.round(d.temperature_2m_min[0]), rain: d.precipitation_probability_max[0], wind: Math.round(d.wind_speed_10m_max[0]) };
+      }).catch(() => null);
+      return send(req, res, 200, w || {}, { 'cache-control': 'public, max-age=1800' });
     }
     if (p[0] === 'news') return send(req, res, 200, await getNews(), { 'cache-control': 'public, max-age=300' });
     if (p[0] === 'health') return send(req, res, 200, { ok: true, season: currentSeason, updated: store[currentSeason]?.updated });
