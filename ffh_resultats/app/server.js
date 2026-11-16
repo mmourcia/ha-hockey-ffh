@@ -2,6 +2,7 @@
 // Zéro dépendance. Usage : node server.js  (PORT=8080)
 import { buildIcs, parseTeams, parisToDate } from './ics.js';
 import { createLive } from './live.js';
+import { nextDelay } from './schedule.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -335,8 +336,15 @@ http.createServer((req, res) => {
   currentSeason = s?.SaisonAnnee || String(new Date().getFullYear() + (new Date().getMonth() > 6 ? 1 : 0));
   await ensure(currentSeason);
   crawlSheets(currentSeason);
-  setInterval(() => refresh(currentSeason), REFRESH_MS);
+  scheduleRefresh();
 });
+// synchronisation adaptative : cadence « en direct » (REFRESH_MS) autour des matchs, espacée en semaine / quand rien ne se passe
+function scheduleRefresh() {
+  const idx = store[currentSeason];
+  const d = nextDelay(idx?.matches || [], Date.now(), REFRESH_MS);
+  health.next = { at: Date.now() + d.delay, delay: d.delay, mode: d.mode };
+  setTimeout(async () => { await refresh(currentSeason); scheduleRefresh(); }, d.delay).unref?.();
+}
 
 // ---------- Panneau d'administration (Ingress Home Assistant, port interne uniquement) ----------
 const ADMIN_PORT = +process.env.ADMIN_PORT || 0;
@@ -360,8 +368,8 @@ async function status() {
     version: process.env.APP_VERSION || 'dev', now: new Date().toISOString(), uptimeSec: Math.floor((Date.now() - health.start) / 1000),
     publicUrl: readPublicUrl(), season: currentSeason, seasonLabel: idx ? `${+currentSeason - 1}/${currentSeason}` : null,
     refreshMs: REFRESH_MS, refreshing: health.refreshing,
-    lastSync: lastAt ? new Date(lastAt).toISOString() : null, nextSync: lastAt ? new Date(lastAt + REFRESH_MS).toISOString() : null,
-    state: !idx ? 'init' : last && !last.ok ? 'error' : lastAt && Date.now() - lastAt > REFRESH_MS * 3 ? 'late' : 'ok',
+    lastSync: lastAt ? new Date(lastAt).toISOString() : null, nextSync: health.next ? new Date(health.next.at).toISOString() : lastAt ? new Date(lastAt + REFRESH_MS).toISOString() : null, syncMode: health.next?.mode || null, syncDelayMs: health.next?.delay || REFRESH_MS,
+    state: !idx ? 'init' : last && !last.ok ? 'error' : lastAt && Date.now() - lastAt > Math.max(REFRESH_MS * 3, (health.next?.delay || 0) + 10 * 60e3) ? 'late' : 'ok',
     counts: idx ? { comps: idx.comps.length, matches: idx.matches.length, played: idx.matches.filter((m) => m.status === 'played').length, upcoming: idx.matches.filter((m) => m.status === 'upcoming').length, clubs: idx.clubs.length, teams: new Set(idx.matches.flatMap((m) => [m.t1.id, m.t2.id])).size } : null,
     sheets: { ...cov, crawling, players: idx && cov.sheets ? players(currentSeason).size : 0 },
     probe: await probe(), news: health.news, push: push.stats(),

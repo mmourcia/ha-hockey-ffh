@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.15.1
+- Synchronisation FFH adaptative : cadence `refresh_minutes` (5 min) de 30 min avant le coup d'envoi d'un match jusqu'à 4 h après ; sinon toutes les 10 min dans les 3 h avant la prochaine fenêtre, 30 min dans les 24 h, 60 min au-delà, avec un réveil pile avant le prochain match. Le panneau HA indique le mode (🟢 match en cours / 🟡 / ⚪) et la fréquence réelle.
+
 ## 1.15.0
 - Frise du direct : chaque saisie faite par soi peut être modifiée (✏️) : buteur, équipe, quart-temps, issue d'un penalty corner / stroke, commentaire ; ou supprimée.
 - Libellés : « Q2 » au lieu de « Quart-temps 2 » ; « Fin Q1 / Mi-temps / Fin Q3 » seulement si le quart-temps est allé (presque) au bout (≥ 13 min), sinon « Pause · Q1 6' ».

@@ -79,7 +79,7 @@ async function load() {
   <div class="card"><h2>Synchronisation avec la FFH</h2>
     ${row('Dernière synchro', `${ago(s.lastSync)} <span class="muted small">(${dt(s.lastSync)})</span>`)}
     ${row('Prochaine', `${ago(s.nextSync)}`)}
-    ${row('Fréquence', `toutes les ${Math.round(s.refreshMs / 60000)} min`)}
+    ${row('Fréquence', `${{ live: '🟢 match en cours', soon: '🟡 match dans moins de 3 h', today: '🟡 match dans les 24 h', idle: '⚪ aucun match proche' }[s.syncMode] || 'adaptative'} · toutes les ${Math.round((s.syncDelayMs || s.refreshMs) / 60000)} min`)}
     ${row('API résultats', ms(s.probe.api))}
     ${row('Site ffhockey.org (actus)', ms(s.probe.site))}
     ${row('Actualités', s.news ? `${s.news.ok ? '<span class="dot"></span>' + s.news.count + ' articles' : '<span class="dot bad"></span>échec'} · ${ago(s.news.at)}` : '<span class="muted">pas encore chargées</span>')}
