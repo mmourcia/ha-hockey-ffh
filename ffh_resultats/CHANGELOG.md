@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.0
+- Temps réel : la fiche match reçoit les mises à jour par flux SSE (quasi instantané, sans rafraîchir) ; l'interrogation périodique ne sert plus que de secours. Mise à jour immédiate au réveil du téléphone / retour sur l'onglet.
+- Chrono indicatif visible par les spectateurs : « Quart-temps 2 · 07:32 » et « ≈ 22' de jeu », avec la mention qu'il n'inclut pas les arrêts de jeu (penalty corners, strokes, blessures…). Une minute approximative s'affiche aussi sur les pastilles « ● Q2 » des cartes.
+
 ## 1.11.4
 - « Je saisis ce match » n'est plus mémorisé définitivement : il vaut pour l'onglet en cours (le bouton réapparaît à la réouverture) et est effacé par « Remettre à zéro » de la démo.
 - Bandeau du match centré sur ordinateur.

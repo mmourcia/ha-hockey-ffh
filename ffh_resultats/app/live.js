@@ -42,7 +42,9 @@ export function aggregate(rec, now = Date.now()) {
   const votes = {};
   for (const [, r] of reps) if (r.p) { const v = (votes[r.p] ||= { n: 0, t: 0 }); v.n++; v.t = Math.max(v.t, r.pt || 0); }
   const best = Object.entries(votes).sort((a, b) => b[1].n - a[1].n || b[1].t - a[1].t)[0];
-  return { period: best ? best[0] : null, votes: best ? best[1].n : 0, reporters: n, score, pending, goals, events, updated: Math.max(0, ...reps.map(([, r]) => r.seen)) || null };
+  // début de la période : première personne à l'avoir déclarée (pour le chrono indicatif)
+  const periodStart = best ? Math.min(...reps.filter(([, r]) => r.p === best[0]).map(([, r]) => r.pt || now)) : null;
+  return { now, period: best ? best[0] : null, periodStart, votes: best ? best[1].n : 0, reporters: n, score, pending, goals, events, updated: Math.max(0, ...reps.map(([, r]) => r.seen)) || null };
 }
 
 export function createLive(dir, { now = () => Date.now() } = {}) {
@@ -113,7 +115,7 @@ export function createLive(dir, { now = () => Date.now() } = {}) {
     for (const [id, rec] of Object.entries(S)) {
       const a = aggregate(rec, now());
       if (!a.updated || now() - a.updated > maxAge) continue;
-      out[id] = { s: a.score, pe: a.pending, p: a.period, n: a.reporters };
+      out[id] = { s: a.score, pe: a.pending, p: a.period, ps: a.periodStart, n: a.reporters };
     }
     return out;
   };

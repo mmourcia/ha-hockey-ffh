@@ -83,3 +83,11 @@ test('commentaires : nettoyage, liens refusés, modération', () => {
   let v = l.view('m1'); const n = v.events.find((e) => e.k === 'note'); assert.equal(n.q, 2); assert.equal(n.txt, 'Belle b action /b de Léo');
   const [x] = l.notes(); assert.ok(l.removeNote('m1', x.id)); assert.equal(l.view('m1').events.filter((e) => e.k === 'note').length, 0);
 });
+
+test('début de période : première déclaration de la majorité', () => {
+  const { l, tick } = mk();
+  l.report('m1', A, { action: 'period', p: 'Q2' }); const t0 = l.view('m1').periodStart; tick(5000);
+  l.report('m1', B, { action: 'period', p: 'Q2' });
+  const v = l.view('m1'); assert.equal(v.period, 'Q2'); assert.equal(v.periodStart, t0); assert.ok(v.now > t0);
+  assert.equal(l.summary().m1.ps, t0);
+});

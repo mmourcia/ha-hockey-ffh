@@ -25,6 +25,14 @@ const INCLUDE_YOUTH = process.env.INCLUDE_YOUTH === 'true';
 const push = createPush(DATA);
 const usage = createStats(DATA);
 const live = createLive(DATA);
+const sse = new Map(); // matchId -> Set(res) : spectateurs connectés au flux temps réel
+let sseCount = 0;
+const sseBroadcast = (id) => {
+  const set = sse.get(String(id)); if (!set || !set.size) return;
+  const data = `data: ${JSON.stringify({ official: false, ...live.view(String(id)) })}\n\n`;
+  for (const r of set) { try { r.write(data); } catch {} }
+};
+setInterval(() => { for (const set of sse.values()) for (const r of set) { try { r.write(': ping\n\n'); } catch {} } }, 20e3).unref();
 const liveRate = new Map(); // ip -> { t, n }
 const liveLimited = (ip) => { const t = Date.now(), r = liveRate.get(ip); if (!r || t - r.t > 600e3) { liveRate.set(ip, { t, n: 1 }); return false; } return ++r.n > 150; };
 const health = { start: Date.now(), refreshes: [], errors: [], changes: [], news: null, refreshing: false, lastOk: null };
@@ -282,6 +290,14 @@ const api = async (req, res, url) => {
       const idx = await ensure(season);
       const m = p[1] === 'demo' ? { id: 'demo', status: 'upcoming', demo: true } : idx.matches.find((x) => String(x.id) === p[1]);
       if (!m || m.bye) return send(req, res, 404, { error: 'Match introuvable' });
+      if (req.method === 'GET' && p[2] === 'stream') {
+        if (sseCount >= 1500) return send(req, res, 503, { error: 'trop de connexions' });
+        res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+        res.write(`retry: 3000\n\ndata: ${JSON.stringify({ official: m.status === 'played', ...live.view(m.id) })}\n\n`);
+        const set = sse.get(String(m.id)) || sse.set(String(m.id), new Set()).get(String(m.id)); set.add(res); sseCount++;
+        req.on('close', () => { if (set.delete(res)) sseCount--; if (!set.size) sse.delete(String(m.id)); });
+        return;
+      }
       if (req.method === 'GET') return send(req, res, 200, { official: m.status === 'played', ...live.view(m.id, req.headers['x-vid']) }, noStore);
       if (req.method !== 'POST') return send(req, res, 405, { error: 'GET ou POST' });
       const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
@@ -293,9 +309,10 @@ const api = async (req, res, url) => {
       if (!start || (process.env.LIVE_OPEN_ALWAYS ? false : timed ? (now < start - 3 * 3600e3 || now > start.getTime() + 6 * 3600e3) : (now < start - 12 * 3600e3 || now > start.getTime() + 36 * 3600e3))) return send(req, res, 409, { error: 'La saisie n’est ouverte que le jour du match (de 3 h avant à 6 h après le coup d’envoi).' });
       const body = await new Promise((ok, ko) => { let b = ''; req.on('data', (d) => { b += d; if (b.length > 2048) req.destroy(); }).on('end', () => ok(b)).on('error', ko); });
       let j = {}; try { j = JSON.parse(body || '{}'); } catch {}
-      if (j.action === 'reset') { if (!m.demo) return send(req, res, 400, { error: 'réservé au match de démonstration' }); live.reset('demo'); return send(req, res, 200, { official: false, ...live.view('demo', j.vid) }, noStore); }
+      if (j.action === 'reset') { if (!m.demo) return send(req, res, 400, { error: 'réservé au match de démonstration' }); live.reset('demo'); sseBroadcast('demo'); return send(req, res, 200, { official: false, ...live.view('demo', j.vid) }, noStore); }
       const r = live.report(m.id, j.vid, j);
       if (r.error) return send(req, res, 400, r);
+      sseBroadcast(m.id);
       return send(req, res, 200, { official: false, ...live.view(m.id, j.vid) }, noStore);
     }
     if (p[0] === 'news') return send(req, res, 200, await getNews(), { 'cache-control': 'public, max-age=300' });
@@ -363,7 +380,7 @@ if (ADMIN_PORT) http.createServer(async (req, res) => {
     if (u.pathname.endsWith('/status')) return json(200, await status());
     if (u.pathname.endsWith('/usage')) return json(200, usageSummary());
     if (u.pathname.endsWith('/livenotes')) return json(200, live.notes());
-    if (req.method === 'POST' && u.pathname.endsWith('/livenotes/delete')) { const b = await new Promise((ok) => { let x = ''; req.on('data', (d) => (x += d)).on('end', () => ok(x)); }); let j = {}; try { j = JSON.parse(b); } catch {} return json(200, { ok: live.removeNote(String(j.match), String(j.id)) }); }
+    if (req.method === 'POST' && u.pathname.endsWith('/livenotes/delete')) { const b = await new Promise((ok) => { let x = ''; req.on('data', (d) => (x += d)).on('end', () => ok(x)); }); let j = {}; try { j = JSON.parse(b); } catch {} const ok = live.removeNote(String(j.match), String(j.id)); if (ok) sseBroadcast(j.match); return json(200, { ok }); }
     if (req.method === 'POST' && u.pathname.endsWith('/refresh')) { refresh(currentSeason); return json(202, { ok: true }); }
     if (req.method === 'POST' && u.pathname.endsWith('/crawl')) { crawlSheets(currentSeason); return json(202, { ok: true }); }
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(fs.readFileSync(path.join(ROOT, 'admin.html')));

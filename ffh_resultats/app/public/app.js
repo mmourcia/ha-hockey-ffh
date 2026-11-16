@@ -79,7 +79,7 @@ function matchCard(m, { showComp = false } = {}) {
   const w = played ? (m.s1 > m.s2 ? 1 : m.s2 > m.s1 ? 2 : 0) : 0;
   const hh = hhmm(m);
   const lv = !played && LIVE[m.id];
-  const when = lv && m.date ? `${dateBlock(m)}<span class="h live">● ${PL[lv.p] || 'En direct'}</span>` : !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
+  const when = lv && m.date ? `${dateBlock(m)}<span class="h live">● ${PL[lv.p] || 'En direct'}${/^Q\d$/.test(lv.p || '') && lv.ps ? ` ${(+lv.p[1] - 1) * 15 + Math.min(15, Math.max(0, Math.floor((Date.now() - lv.ps) / 60e3)))}'` : ''}</span>` : !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
   const comp = IDX.comp[m.comp];
   const name = (t, i) => `<div class="${w === i ? 'win' : ''}"><span class="n">${esc(t.name)}</span>${isFavTeam(t) ? ' <span style="color:#f5b301">★</span>' : ''}</div>`;
   const score = m.bye ? '' : lv ? `<div class="lv">${lv.s[0]}</div><div class="lv">${lv.s[1]}</div>` : played ? `<div class="${w === 2 ? 'lose' : ''}">${m.s1}</div><div class="${w === 1 ? 'lose' : ''}">${m.s2}</div>` : '';
@@ -470,14 +470,28 @@ async function liveApi(id, body) {
 }
 const hmin = (t) => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
 let draft = { who: '', txt: '' };
+// chrono indicatif : temps écoulé depuis le début du quart-temps déclaré (15 min), SANS les arrêts de jeu
+const QMIN = 15;
+let clockOffset = 0; // écart horloge serveur / appareil
+function clockOf(v) {
+  if (!v?.period || !/^Q\d$/.test(v.period) || !v.periodStart) return null;
+  const q = +v.period[1]; let el = Math.max(0, Date.now() + clockOffset - v.periodStart); const capped = el >= QMIN * 60e3; el = Math.min(el, QMIN * 60e3);
+  const mm = Math.floor(el / 60e3), ss = Math.floor((el % 60e3) / 1000);
+  return { q, txt: `${pad(mm)}:${pad(ss)}${capped ? '+' : ''}`, minutes: (q - 1) * QMIN + mm };
+}
+function tickClock(v) {
+  const c = clockOf(v), a = $('#clk'), b = $('#clk2');
+  if (a && c) a.textContent = c.txt; if (b && c) b.textContent = `${c.minutes}'`;
+}
 const liveVisible = (m, v) => v.reporters > 0 || inWindow(m);
 // haut de page : score (pour tous) + panneau de contrôle compact (pour celui qui saisit)
 function liveTop(m, v, scoring) {
   const T = (i) => esc(m['t' + (i + 1)].name), open = inWindow(m);
   if (!liveVisible(m, v)) return '';
   const per = v.period ? (v.period === 'END' ? 'Match terminé' : v.period === 'PAUSE' ? 'Pause' : 'Quart-temps ' + v.period.slice(1)) : 'En cours';
-  const board = v.reporters ? `<div class="lv-top"><span class="per ${v.period === 'END' ? 'end' : ''}">${per}</span><span class="muted small">${v.reporters} spectateur${v.reporters > 1 ? 's' : ''} · <b style="color:var(--warn)">non officiel</b></span></div>
-    <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>` : '<p class="muted" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score ! <b style="color:var(--warn)">Non officiel.</b></p>';
+  const clk = clockOf(v);
+  const board = v.reporters ? `<div class="lv-top"><span class="per ${v.period === 'END' ? 'end' : ''}">${per}${clk ? ` · <span id="clk">${clk.txt}</span>` : ''}</span><span class="muted small">${v.reporters} spectateur${v.reporters > 1 ? 's' : ''} · <b style="color:var(--warn)">non officiel</b></span></div>
+    <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>${clk ? `<div class="small muted center" style="margin:-2px 0 6px">⏱ ≈ <b id="clk2">${clk.minutes}'</b> de jeu · temps <b>indicatif</b> : il n’inclut pas les arrêts de jeu (penalty corners, strokes, blessures…)</div>` : ''}` : '<p class="muted" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score ! <b style="color:var(--warn)">Non officiel.</b></p>';
   const mine = v.mine || { p: null, goals: [], open: [], notes: 0 };
   const side = (i) => `<div class="lv-col"><div class="lv-h">${T(i)}</div><button class="gb" data-g="${i}">⚽ But</button><button class="gb alt" data-sp="pc:${i}">🏑 Penalty corner</button><button class="gb alt" data-sp="stroke:${i}">🎯 Stroke</button></div>`;
   const panel = scoring ? `<div class="scorer"><div class="lv-top"><b>Vous saisissez</b><button class="link" data-stop>Arrêter</button></div>
@@ -509,7 +523,7 @@ function liveTimeline(m, v) {
 }
 // « je saisis ce match » : valable pour l'onglet en cours seulement (se réinitialise à la fermeture)
 const sess = { get: (k) => { try { return sessionStorage.getItem(k) === '1'; } catch { return false; } }, set: (k, v) => { try { v ? sessionStorage.setItem(k, '1') : sessionStorage.removeItem(k); } catch {} } };
-let liveTimer = null;
+let liveTimer = null, liveStop = null;
 async function startLive(m) {
   const box = $('#live'), tl = $('#livetl'); if (!box || !tl) return;
   const key = 'scoring.' + m.id; let v = { reporters: 0, goals: [], events: [], score: [0, 0], pending: [0, 0], mine: null };
@@ -538,9 +552,18 @@ async function startLive(m) {
     box.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { const [k, s] = b.dataset.sp.split(':'); go({ type: 'sp', k, side: +s }); }));
     box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); } catch {} await run(q); }));
   };
-  const poll = async () => { try { const n = await liveApi(m.id); if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; clearInterval(liveTimer); return; } v = n; const a = document.activeElement; if (!(box.contains(a) && a.matches('input,button'))) draw(); } catch {} };
+  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); return false; } v = { ...n, mine: n.mine ?? v.mine }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!(box.contains(a) && a.matches('input,button'))) draw(); return true; };
+  const poll = async () => { try { const n = await liveApi(m.id); apply({ ...n, mine: n.mine }); } catch {} };
+  let es = null, tick = 0, clk = null;
+  const stop = () => { clearInterval(liveTimer); clearInterval(clk); es?.close(); document.removeEventListener('visibilitychange', onVis); };
+  const onVis = () => { if (!document.hidden) poll(); }; // réveil du téléphone / retour sur l'onglet : mise à jour immédiate
+  liveStop = stop;
   draw(); await poll();
-  clearInterval(liveTimer); liveTimer = setInterval(() => { if (!document.hidden) poll(); }, 8000);
+  document.addEventListener('visibilitychange', onVis);
+  clk = setInterval(() => tickClock(v), 1000);
+  // temps réel : flux SSE ; l'interrogation toutes les 8 s ne sert que de secours (toutes les 32 s si le flux est connecté)
+  try { es = new EventSource(`/api/live/${m.id}/stream`); es.onmessage = (e) => { try { apply(JSON.parse(e.data)); } catch {} }; } catch {}
+  liveTimer = setInterval(() => { if (document.hidden) return; tick++; if (es && es.readyState === 1 && tick % 4) return; poll(); }, 8000);
 }
 async function preMatch(m) {
   const box = $('#pre'); if (!box) return;
@@ -610,7 +633,7 @@ const notFound = () => (app.innerHTML = '<div class="empty">Page introuvable. <a
 
 // ---------- routeur ----------
 async function route(keep) {
-  if (keep !== true) clearInterval(liveTimer);
+  if (keep !== true) { clearInterval(liveTimer); liveStop?.(); liveStop = null; }
   const [, name = '', a, b] = location.hash.replace(/^#/, '').split('/');
   const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs', joueurs: 'joueurs', joueur: 'joueur', arbitres: 'arbitres', arbitre: 'arbitre', agenda: 'agenda' }[name] || 'home';
   const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', joueurs: 'comps', joueur: 'comps', arbitres: 'comps', arbitre: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', agenda: 'equipes', actus: 'home', search: 'home' }[v];
