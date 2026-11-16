@@ -13,7 +13,7 @@ import { createPush } from './push.js';
 import { createStats } from './stats.js';
 import { norm } from './text.js';
 import { aggregateReferees, listReferees, refereeDetail, refId, cleanRefName } from './referees.js';
-import { compactSheet, aggregate, search as searchPlayers, isYouthComp } from './players.js';
+import { pid as pidOf, compactSheet, aggregate, search as searchPlayers, isYouthComp } from './players.js';
 import { normMatch, normComp, normStandings, normScorers, parseSheet, parseNewsHtml } from './lib.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -231,7 +231,9 @@ const api = async (req, res, url) => {
         return { role: o.role, name: ref ? cleanRefName(o.name) : o.name, id: ref ? refId({ l: o.licence, n: o.name }) : null };
       });
       // confidentialité : aucun numéro de licence dans l'API publique
-      sh.players = sh.players.map((side) => side.map(({ licence, ...x }) => x));
+      // identifiant opaque (jamais le n° de licence) pour lier le joueur à sa fiche, seulement s'il est indexé (jeunes exclus)
+      await ensure(season); const known = players(season);
+      sh.players = sh.players.map((side) => side.map(({ licence, ...x }) => { const id = licence ? pidOf(licence) : null; return { ...x, id: id && known.has(id) ? id : null }; }));
       sh.injuries = sh.injuries.map((t) => (t || '').replace(/\b\d{6,9}\s*-\s*/g, ''));
       return send(req, res, 200, sh, { 'cache-control': 'public, max-age=120' });
     }

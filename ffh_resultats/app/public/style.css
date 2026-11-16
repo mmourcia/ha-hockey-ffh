@@ -140,3 +140,6 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .arch{margin:14px 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;box-shadow:var(--shadow)}
 .arch>summary{cursor:pointer;list-style:none;padding:2px 0}.arch>summary::-webkit-details-marker{display:none}.arch>summary::before{content:'▸ ';color:var(--mute)}.arch[open]>summary::before{content:'▾ '}
 .arch .lv-card{box-shadow:none;border:0;padding:6px 0 0;margin:0}
+/* 1.17.1 : cartons par équipe, joueurs cliquables */
+.tcards{display:inline-flex;gap:6px;align-items:center;margin-left:6px;font-weight:600;color:var(--ink)}.tcards .cd{vertical-align:-1px}
+.pl a.nm{color:inherit;text-decoration:none}.pl a.nm:hover,.pl a.nm:active{color:var(--acc);text-decoration:underline}

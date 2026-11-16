@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.1
+- Feuille de match : les cartons s'affichent par équipe, à côté du nom de l'équipe, au lieu d'un total pour les deux équipes.
+- Les joueurs de la feuille sont cliquables et mènent à leur fiche individuelle (identifiant opaque, jamais le n° de licence ; pas de lien pour les catégories de jeunes non indexées).
+
 ## 1.17.0
 - Accès à la saisie en direct : nouvelle option `live_input_code`. Vide (défaut) = saisie fermée à tout le monde (le suivi reste public) ; un code = seules les personnes qui le connaissent peuvent saisir (demandé une fois, mémorisé sur l'appareil, 10 essais ratés / 10 min / adresse) ; `*` = ouverte à tous.
 - « Fin de match » demande confirmation en expliquant qu'aucune saisie supplémentaire ne sera possible ; ensuite le panneau se verrouille (seule la correction / suppression de ses saisies reste possible).
