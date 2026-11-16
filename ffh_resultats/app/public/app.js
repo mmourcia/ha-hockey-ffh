@@ -475,9 +475,9 @@ const QMIN = 15;
 let clockOffset = 0; // écart horloge serveur / appareil
 function clockOf(v) {
   if (!v?.period || !/^Q\d$/.test(v.period) || !v.periodStart) return null;
-  const q = +v.period[1]; let el = Math.max(0, Date.now() + clockOffset - v.periodStart); const capped = el >= QMIN * 60e3; el = Math.min(el, QMIN * 60e3);
+  const q = +v.period[1]; const el = Math.max(0, Date.now() + clockOffset - v.periodStart); // le chrono continue au-delà de 15 min jusqu'à ce que quelqu'un déclare le quart-temps suivant
   const mm = Math.floor(el / 60e3), ss = Math.floor((el % 60e3) / 1000);
-  return { q, txt: `${pad(mm)}:${pad(ss)}${capped ? '+' : ''}`, minutes: (q - 1) * QMIN + mm };
+  return { q, txt: `${pad(mm)}:${pad(ss)}`, minutes: (q - 1) * QMIN + Math.min(mm, QMIN) };
 }
 function tickClock(v) {
   const c = clockOf(v), a = $('#clk'), b = $('#clk2');

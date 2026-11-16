@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.12.1
+- Chrono indicatif : il ne s'arrête plus à 15:00, il continue (16:42, 18:10…) jusqu'à ce qu'un saisisseur déclare le quart-temps suivant. Le cumul « ≈ N' de jeu » reste plafonné à 15' par quart-temps.
+
 ## 1.12.0
 - Temps réel : la fiche match reçoit les mises à jour par flux SSE (quasi instantané, sans rafraîchir) ; l'interrogation périodique ne sert plus que de secours. Mise à jour immédiate au réveil du téléphone / retour sur l'onglet.
 - Chrono indicatif visible par les spectateurs : « Quart-temps 2 · 07:32 » et « ≈ 22' de jeu », avec la mention qu'il n'inclut pas les arrêts de jeu (penalty corners, strokes, blessures…). Une minute approximative s'affiche aussi sur les pastilles « ● Q2 » des cartes.
