@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.14.1
+- Le badge du direct précise l'état : « Quart-temps N · chrono », « Fin du Q1 », « Mi-temps » (pause après le Q2), « Fin du Q3 », « Fin du Q4 », « Fin de match ». Le bouton de saisie reste « Pause » : l'appli déduit le libellé du quart-temps qui vient de se terminer. Pastilles des cartes alignées (« ● Mi-temps »).
+
 ## 1.14.0
 - Saisie d'un but en deux temps : « But » enregistre et compte tout de suite ; l'appli demande ensuite « Qui ? » avec les joueurs de l'équipe (suggestions, recherche par prénom / nom / n°) ; « Je ne sais pas » ferme sans buteur. Un seul joueur correspondant au texte = son nom officiel est utilisé ; plusieurs = le bon est à toucher dans la liste ; aucun = texte conservé tel quel. Même question après l'issue « But » d'un penalty corner ou d'un stroke.
 - Le buteur peut être renseigné ou corrigé après coup (action `who`).

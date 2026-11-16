@@ -113,3 +113,13 @@ test('buteur renseigné après coup', () => {
   l.report('m1', A, { action: 'who', i: 0, who: 'HANNOIR YVAN' });
   assert.equal(l.view('m1').goals[0].who, 'HANNOIR YVAN'); assert.equal(l.view('m1', A).mine.goals[0].who, 'HANNOIR YVAN');
 });
+
+test('pause : on sait après quel quart-temps (fin Q1, mi-temps, fin Q3…)', () => {
+  const { l, tick } = mk();
+  l.report('m1', A, { action: 'period', p: 'Q1' }); tick(1000); l.report('m1', A, { action: 'period', p: 'PAUSE' });
+  assert.equal(l.view('m1').lastQ, 1);
+  tick(1000); l.report('m1', A, { action: 'period', p: 'Q2' }); tick(1000); l.report('m1', A, { action: 'period', p: 'PAUSE' });
+  assert.equal(l.view('m1').lastQ, 2); assert.equal(l.summary().m1.lq, 2);
+  tick(1000); l.report('m1', A, { action: 'period', p: 'Q3' });
+  assert.equal(l.view('m1').lastQ, null);
+});

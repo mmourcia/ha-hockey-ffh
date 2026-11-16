@@ -61,6 +61,8 @@ const isLive = (m) => { if (m.status !== 'upcoming' || !m.date) return false; co
 // ---------- suivi en direct collaboratif (non officiel) ----------
 let LIVE = {};
 const PL = { Q1: 'Q1', Q2: 'Q2', Q3: 'Q3', Q4: 'Q4', PAUSE: 'Pause', END: 'Terminé' };
+// libellé d'une pause selon le quart-temps qui vient de se terminer
+const pauseLabel = (lq) => ({ 1: 'Fin du Q1', 2: 'Mi-temps', 3: 'Fin du Q3', 4: 'Fin du Q4' }[lq] || 'Pause');
 async function loadLive() {
   try {
     const next = await (await fetch('/api/live', { cache: 'no-store' })).json();
@@ -79,7 +81,7 @@ function matchCard(m, { showComp = false } = {}) {
   const w = played ? (m.s1 > m.s2 ? 1 : m.s2 > m.s1 ? 2 : 0) : 0;
   const hh = hhmm(m);
   const lv = !played && LIVE[m.id];
-  const when = lv && m.date ? `${dateBlock(m)}<span class="h live">● ${PL[lv.p] || 'En direct'}${/^Q\d$/.test(lv.p || '') && lv.ck ? ` ${(lv.ck.q - 1) * 15 + Math.min(15, Math.floor(Math.max(0, lv.ck.acc + (lv.ck.since != null ? Date.now() - lv.ck.since : 0)) / 60e3))}'` : ''}</span>` : !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
+  const when = lv && m.date ? `${dateBlock(m)}<span class="h live">● ${lv.p === 'PAUSE' ? pauseLabel(lv.lq).replace('Fin du ', 'Fin ') : PL[lv.p] || 'En direct'}${/^Q\d$/.test(lv.p || '') && lv.ck ? ` ${(lv.ck.q - 1) * 15 + Math.min(15, Math.floor(Math.max(0, lv.ck.acc + (lv.ck.since != null ? Date.now() - lv.ck.since : 0)) / 60e3))}'` : ''}</span>` : !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
   const comp = IDX.comp[m.comp];
   const name = (t, i) => `<div class="${w === i ? 'win' : ''}"><span class="n">${esc(t.name)}</span>${isFavTeam(t) ? ' <span style="color:#f5b301">★</span>' : ''}</div>`;
   const score = m.bye ? '' : lv ? `<div class="lv">${lv.s[0]}</div><div class="lv">${lv.s[1]}</div>` : played ? `<div class="${w === 2 ? 'lose' : ''}">${m.s1}</div><div class="${w === 1 ? 'lose' : ''}">${m.s2}</div>` : '';
@@ -508,7 +510,7 @@ const showName = (p) => `${p.name}${p.no ? ' (n°' + p.no + ')' : ''}`;
 function liveTop(m, v, scoring, ui = {}) {
   const T = (i) => esc(m['t' + (i + 1)].name), open = inWindow(m);
   if (!liveVisible(m, v)) return '';
-  const per = v.period ? (v.period === 'END' ? 'Match terminé' : v.period === 'PAUSE' ? 'Pause' : 'Quart-temps ' + v.period.slice(1)) : 'En cours';
+  const per = v.period ? (v.period === 'END' ? 'Fin de match' : v.period === 'PAUSE' ? pauseLabel(v.lastQ) : 'Quart-temps ' + v.period.slice(1)) : 'En cours';
   const clk = clockOf(v);
   const board = v.reporters ? `<div class="lv-top"><span class="per ${v.period === 'END' ? 'end' : ''}">${per}${clk ? ` · <span id="clk">${clk.txt}</span>` : ''}</span><span class="muted small">${v.reporters} spectateur${v.reporters > 1 ? 's' : ''} · <b style="color:var(--warn)">non officiel</b></span></div>
     <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>${clk ? `<div class="small muted center" style="margin:-2px 0 6px">⏱ ≈ <b id="clk2">${clk.minutes}'</b> de jeu · temps <b>indicatif</b> : il n’inclut pas les arrêts de jeu (penalty corners, strokes, blessures…)</div>` : ''}` : `<div class="lv-score"><span>${T(0)}</span><b>0 – 0</b><span>${T(1)}</span></div><p class="muted small center" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score ! <b style="color:var(--warn)">Non officiel.</b></p>`;

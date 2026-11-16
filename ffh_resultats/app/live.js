@@ -17,6 +17,7 @@ const isQ = (p) => /^Q[1-4]$/.test(p || '');
 function setPeriod(me, p, t) {
   if (p === me.p) return;
   if (isQ(me.p)) { const last = me.qs[me.p]?.at(-1); if (last && last.e == null) last.e = t; }
+  if (isQ(me.p)) me.lq = +me.p[1]; // dernier quart-temps joué (pour « Fin Q1 / Mi-temps / Fin Q3 »)
   me.p = p; me.pt = t;
   if (isQ(p)) (me.qs[p] ||= []).push({ f: t });
 }
@@ -63,7 +64,9 @@ export function aggregate(rec, now = Date.now()) {
   // chrono de chaque fait : temps de jeu écoulé dans son quart-temps (référence = premier saisisseur à avoir déclaré ce quart-temps)
   const refQ = (q) => reps.map(([, r]) => r).filter((r) => r.qs?.[`Q${q}`]?.length).sort((a, b) => first(a, `Q${q}`) - first(b, `Q${q}`))[0];
   for (const e of events) { const r = e.q ? refQ(e.q) : null; e.c = r ? elapsedAt(r.qs[`Q${e.q}`], e.t) : null; }
-  return { now, period: best ? best[0] : null, clock, votes: best ? best[1].n : 0, reporters: n, score, pending, goals, events, updated: Math.max(0, ...reps.map(([, r]) => r.seen)) || null };
+  const lqs = best && best[0] === 'PAUSE' ? reps.filter(([, r]) => r.p === 'PAUSE' && r.lq).map(([, r]) => r.lq) : [];
+  const lastQ = lqs.length ? [...new Set(lqs)].sort((a, b) => lqs.filter((x) => x === b).length - lqs.filter((x) => x === a).length || b - a)[0] : null;
+  return { now, period: best ? best[0] : null, lastQ, clock, votes: best ? best[1].n : 0, reporters: n, score, pending, goals, events, updated: Math.max(0, ...reps.map(([, r]) => r.seen)) || null };
 }
 
 export function createLive(dir, { now = () => Date.now() } = {}) {
@@ -138,7 +141,7 @@ export function createLive(dir, { now = () => Date.now() } = {}) {
     for (const [id, rec] of Object.entries(S)) {
       const a = aggregate(rec, now());
       if (!a.updated || now() - a.updated > maxAge) continue;
-      out[id] = { s: a.score, pe: a.pending, p: a.period, ck: a.clock, n: a.reporters };
+      out[id] = { s: a.score, pe: a.pending, p: a.period, lq: a.lastQ, ck: a.clock, n: a.reporters };
     }
     return out;
   };
