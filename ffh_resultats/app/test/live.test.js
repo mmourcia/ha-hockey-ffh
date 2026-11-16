@@ -104,3 +104,12 @@ test('chrono de chaque fait de la frise', () => {
   const ev = l.view('m1').events; // le plus récent d'abord
   assert.equal(ev[0].c, 12 * 60e3); // 10 min avant la pause + 2 min après assert.equal(ev[1].c, 5 * 60e3);
 });
+
+test('buteur renseigné après coup', () => {
+  const { l } = mk();
+  l.report('m1', A, { action: 'goal', side: 0, q: 1 });
+  assert.equal(l.view('m1').goals[0].who, '');
+  assert.ok(l.report('m1', A, { action: 'who', i: 5, who: 'X' }).error);
+  l.report('m1', A, { action: 'who', i: 0, who: 'HANNOIR YVAN' });
+  assert.equal(l.view('m1').goals[0].who, 'HANNOIR YVAN'); assert.equal(l.view('m1', A).mine.goals[0].who, 'HANNOIR YVAN');
+});

@@ -130,3 +130,6 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .ev .q{width:48px;line-height:1.2}.ev .q .muted{font-weight:500;font-variant-numeric:tabular-nums}
 .cf.one{background:var(--line);color:var(--mute);font-weight:600}
 .sug{display:flex;flex-wrap:wrap;gap:6px;margin:-2px 0 6px}.sug:empty{display:none}.sug .chip{font-size:13px;padding:5px 10px;text-align:left}
+/* 1.14 : « Qui a marqué ? » après le but */
+.open.ask{border-width:2px}.open.ask .cmt{margin:6px 0}.open.ask .sug{margin:0 0 4px}
+.open.ask{padding:8px}.open.ask .sug{gap:5px}.open.ask .sug .chip{font-size:12px;padding:4px 9px}

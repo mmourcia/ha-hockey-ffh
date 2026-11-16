@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.0
+- Saisie d'un but en deux temps : « But » enregistre et compte tout de suite ; l'appli demande ensuite « Qui ? » avec les joueurs de l'équipe (suggestions, recherche par prénom / nom / n°) ; « Je ne sais pas » ferme sans buteur. Un seul joueur correspondant au texte = son nom officiel est utilisé ; plusieurs = le bon est à toucher dans la liste ; aucun = texte conservé tel quel. Même question après l'issue « But » d'un penalty corner ou d'un stroke.
+- Le buteur peut être renseigné ou corrigé après coup (action `who`).
+
 ## 1.13.3
 - Fiche match : quand personne ne saisit encore, le tableau affiche les deux équipes et « 0 – 0 » (les noms d'équipes étaient masqués).
 

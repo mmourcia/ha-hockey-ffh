@@ -109,6 +109,10 @@ export function createLive(dir, { now = () => Date.now() } = {}) {
         me.x.push({ id: crypto.randomBytes(4).toString('hex'), k: 'note', q: /^Q[1-4]$/.test(me.p || '') ? +me.p[1] : 0, t, txt });
         break;
       }
+      case 'who': { // renseigner (ou corriger) le buteur d'un de MES buts
+        const g = me.g[body.i]; if (!g) return { error: 'but introuvable' };
+        g.who = clean(body.who, 40); break;
+      }
       case 'undo': {
         const lastG = me.g.at(-1), lastX = [...me.x].reverse().find((e) => !e.gid);
         if (lastG && (!lastX || lastG.t >= lastX.t)) { me.g.pop(); if (lastG.via) me.x = me.x.filter((e) => e.gid !== lastG.t); }

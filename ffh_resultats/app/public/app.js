@@ -514,14 +514,13 @@ function liveTop(m, v, scoring, ui = {}) {
     <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>${clk ? `<div class="small muted center" style="margin:-2px 0 6px">⏱ ≈ <b id="clk2">${clk.minutes}'</b> de jeu · temps <b>indicatif</b> : il n’inclut pas les arrêts de jeu (penalty corners, strokes, blessures…)</div>` : ''}` : `<div class="lv-score"><span>${T(0)}</span><b>0 – 0</b><span>${T(1)}</span></div><p class="muted small center" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score ! <b style="color:var(--warn)">Non officiel.</b></p>`;
   const mine = v.mine || { p: null, goals: [], open: [], notes: 0 };
   const side = (i) => `<div class="lv-col"><div class="lv-h">${T(i)}</div><button class="gb" data-g="${i}">⚽ But</button><button class="gb alt" data-sp="pc:${i}">🏑 Penalty corner</button><button class="gb alt" data-sp="stroke:${i}">🎯 Stroke</button></div>`;
-  const conf = ui.conf ? `<div class="open"><b>Plusieurs joueurs correspondent à « ${esc(ui.conf.text)} »</b><div class="sug">${ui.conf.choices.map((p, k) => `<button class="chip" data-pick="${k}">${esc(showName(p))}</button>`).join('')}<button class="chip" data-pick="-1">Garder « ${esc(ui.conf.text)} »</button></div></div>` : '';
+  const ask = ui.ask ? `<div class="open ask"><div class="lv-top" style="margin-bottom:2px"><b>⚽ But ${T(ui.ask.side)} : qui ?</b><button class="link" data-whoskip>🤷 Je ne sais pas</button></div><div class="cmt"><input class="search mini" id="whoq" maxlength="40" autocomplete="off" placeholder="Prénom, nom ou n° (facultatif)" value="${esc(draft.who)}"><button class="btn" data-whook>OK</button></div><div class="sug" id="sug"></div></div>` : '';
   const panel = scoring ? `<div class="scorer"><div class="lv-top"><b>Vous saisissez</b><button class="link" data-stop>Arrêter</button></div>
+    ${ask}
     <div class="chips pp">${['Q1', 'Q2', 'Q3', 'Q4', 'PAUSE', 'END'].map((p) => `<button class="chip ${mine.p === p ? 'on' : ''}" data-pp="${p}">${p === 'PAUSE' ? 'Pause' : p === 'END' ? 'Fin' : p}</button>`).join('')}</div>
     <div id="qask" hidden><div class="small muted">Dans quel quart-temps ?</div><div class="chips pp">${[1, 2, 3, 4].map((q) => `<button class="chip" data-gq="${q}">Q${q}</button>`).join('')}</div></div>
     <div class="lv-cols">${side(0)}${side(1)}</div>
-    ${conf}
     ${mine.open.map((o) => `<div class="open"><b>${o.k === 'pc' ? '🏑 Penalty corner' : '🎯 Stroke'} ${T(o.side)}</b> <span class="muted small">(Q${o.q})</span> : issue ?<div class="chips pp"><button class="chip" data-res="${o.id}:saved">🧤 Arrêté</button><button class="chip" data-res="${o.id}:but">⚽ But</button><button class="chip" data-res="${o.id}:miss">❌ Non cadré</button></div></div>`).join('')}
-    <input class="search mini" id="who" maxlength="40" autocomplete="off" placeholder="Buteur (facultatif) : prénom, nom, n°…" value="${esc(draft.who)}"><div class="sug" id="sug"></div>
     <div class="cmt"><input class="search mini" id="txt" maxlength="140" placeholder="Commentaire (facultatif)" value="${esc(draft.txt)}"><button class="btn" data-note>Publier</button></div>
     <button class="link" data-undo ${mine.goals.length || mine.open.length || mine.notes ? '' : 'disabled'}>↩ Annuler ma dernière saisie</button></div>`
     : open ? '<button class="btn primary" data-start>📣 Je saisis ce match</button>' : '';
@@ -551,21 +550,16 @@ async function startLive(m) {
   const key = 'scoring.' + m.id; let v = { reporters: 0, goals: [], events: [], score: [0, 0], pending: [0, 0], mine: null };
   let pend = null, ui = {}, rosters = [[], []];
   Promise.all([loadRoster(m.t1.id), loadRoster(m.t2.id)]).then((r) => { rosters = r; updSug(); });
+  // « Qui a marqué ? » : posé APRÈS l'enregistrement du but (le but compte tout de suite) ; « Je ne sais pas » ferme sans buteur
   const updSug = () => {
-    const el = $('#sug'); if (!el) return;
-    const t = draft.who.trim(); if (t.length < 2) { el.innerHTML = ''; return; }
-    const all = [0, 1].flatMap((s) => candidates(rosters[s], t).map((p) => ({ ...p, side: s }))).slice(0, 6);
-    el.innerHTML = all.map((p, k) => `<button class="chip" data-sg="${k}">${esc(showName(p))} <span class="muted">· ${esc(m['t' + (p.side + 1)].name)}</span></button>`).join('');
-    el.querySelectorAll('[data-sg]').forEach((b) => (b.onclick = () => { draft.who = all[+b.dataset.sg].name; $('#who').value = draft.who; updSug(); }));
+    const el = $('#sug'); if (!el || !ui.ask) return;
+    const t = draft.who.trim(), r = rosters[ui.ask.side] || [];
+    const list = (t ? candidates(r, t) : r.slice(0, 6));
+    el.innerHTML = list.map((p, k) => `<button class="chip" data-sg="${k}">${esc(showName(p))}</button>`).join('') || (t ? '<span class="muted small">Aucun joueur ne correspond : « OK » enregistrera le texte tel quel.</span>' : '');
+    el.querySelectorAll('[data-sg]').forEach((b) => (b.onclick = () => setWho(list[+b.dataset.sg].name)));
   };
-  // détermine le buteur : vide -> rien ; un seul candidat -> nom officiel ; plusieurs -> on demande ; aucun -> texte tel quel
-  const withWho = (side, text, cb) => {
-    text = (text || '').trim(); if (!text) return cb('');
-    const c = candidates(rosters[side], text);
-    if (c.length === 1) return cb(c[0].name);
-    if (c.length === 0) return cb(text);
-    ui.conf = { text, choices: c, cb }; draw();
-  };
+  const setWho = async (name) => { const a = ui.ask; if (!a) return; try { v = await liveApi(m.id, { action: 'who', i: a.i, who: name }); } catch (e) { toast(e.message); return; } ui = {}; draft.who = ''; draw(); toast('Buteur enregistré'); };
+  const askWho = (side) => { const n = (v.mine?.goals || []).length; if (n) { ui.ask = { side, i: n - 1 }; draft.who = ''; draw(); } };
   const draw = () => {
     if (!$('#live')) return;
     const scoring = sess.get(key) && inWindow(m);
@@ -573,26 +567,27 @@ async function startLive(m) {
     // celui qui saisit garde son panneau en haut et la frise en bas de page ; celui qui regarde a la frise juste sous le score
     if (scoring) { if (tl !== app.lastElementChild) app.append(tl); } else if (tl.previousElementSibling !== box) box.after(tl);
     app.querySelector('.band')?.classList.toggle('live', liveVisible(m, v)); // bandeau compact : les équipes sont déjà dans le tableau de score
-    box.querySelector('#who')?.addEventListener('input', (e) => { draft.who = e.target.value; updSug(); });
+    box.querySelector('#whoq')?.addEventListener('input', (e) => { draft.who = e.target.value; updSug(); });
+    box.querySelector('[data-whoskip]')?.addEventListener('click', () => { ui = {}; draft.who = ''; draw(); });
+    box.querySelector('[data-whook]')?.addEventListener('click', () => { const t = draft.who.trim(); if (!t) { ui = {}; draw(); return; } const c = candidates(rosters[ui.ask.side] || [], t); if (c.length === 1) setWho(c[0].name); else if (c.length > 1) toast('Plusieurs joueurs correspondent : touchez le bon'); else setWho(t); });
     box.querySelector('#txt')?.addEventListener('input', (e) => (draft.txt = e.target.value));
     updSug();
-    const act = async (body) => { try { v = await liveApi(m.id, body); clockOffset = (v.now || Date.now()) - Date.now(); if (['goal', 'resolve', 'note'].includes(body.action)) { if (body.action !== 'note') draft.who = ''; draft.txt = ''; } ui = {}; draw(); toast('Enregistré'); } catch (e) { toast(e.message); } };
+    const act = async (body, after) => { try { v = await liveApi(m.id, body); clockOffset = (v.now || Date.now()) - Date.now(); if (body.action === 'note') draft.txt = ''; if (body.action === 'undo') ui = {}; else if (!after) ui = ui.ask ? ui : {}; if (after) { ui = {}; draw(); after(); } else draw(); toast('Enregistré'); } catch (e) { toast(e.message); } };
     box.querySelector('[data-start]')?.addEventListener('click', () => { sess.set(key, true); draw(); window.scrollTo(0, 0); });
     box.querySelector('[data-stop]')?.addEventListener('click', () => { sess.set(key, false); draw(); });
     tl.querySelector('[data-demo-reset]')?.addEventListener('click', async () => { try { v = await liveApi('demo', { action: 'reset' }); sess.set(key, false); draw(); toast('Démo remise à zéro'); } catch (e) { toast(e.message); } });
     box.querySelectorAll('[data-pp]').forEach((b) => (b.onclick = () => act({ action: 'period', p: b.dataset.pp })));
     box.querySelector('[data-undo]')?.addEventListener('click', () => act({ action: 'undo' }));
     box.querySelector('[data-note]')?.addEventListener('click', () => act({ action: 'note', txt: draft.txt }));
-    box.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => { const c = ui.conf, k = +b.dataset.pick; ui.conf = null; c.cb(k < 0 ? c.text : c.choices[k].name); }));
-    box.querySelectorAll('[data-res]').forEach((b) => (b.onclick = () => { const [id, res] = b.dataset.res.split(':'); const o = (v.mine?.open || []).find((x) => x.id === id); if (res === 'but') withWho(o?.side ?? 0, draft.who, (who) => act({ action: 'resolve', id, res, who, txt: draft.txt })); else act({ action: 'resolve', id, res, txt: draft.txt }); }));
+    box.querySelectorAll('[data-res]').forEach((b) => (b.onclick = () => { const [id, res] = b.dataset.res.split(':'); const o = (v.mine?.open || []).find((x) => x.id === id); act({ action: 'resolve', id, res, txt: draft.txt }, res === 'but' ? () => askWho(o?.side ?? 0) : undefined); }));
     const cur = v.mine?.p && /^Q\d$/.test(v.mine.p) ? +v.mine.p[1] : 0;
-    const run = (q) => (pend.type === 'goal' ? withWho(pend.side, draft.who, (who) => act({ action: 'goal', side: pend.side, q, who })) : act({ action: 'sp', k: pend.k, side: pend.side, q }));
+    const run = (q) => (pend.type === 'goal' ? act({ action: 'goal', side: pend.side, q }, () => askWho(pend.side)) : act({ action: 'sp', k: pend.k, side: pend.side, q }));
     const go = (p) => { pend = p; if (cur) run(cur); else $('#qask').hidden = false; };
     box.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => go({ type: 'goal', side: +b.dataset.g })));
     box.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { const [k, s] = b.dataset.sp.split(':'); go({ type: 'sp', k, side: +s }); }));
     box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); } catch {} run(q); }));
   };
-  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); return false; } v = { ...n, mine: n.mine ?? v.mine }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!(box.contains(a) && a.matches('input,button')) && !ui.conf) draw(); return true; };
+  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); return false; } v = { ...n, mine: n.mine ?? v.mine }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!(box.contains(a) && a.matches('input,button'))) draw(); return true; };
   const poll = async () => { try { apply(await liveApi(m.id)); } catch {} };
   let es = null, tick = 0, clk = null;
   const stop = () => { clearInterval(liveTimer); clearInterval(clk); es?.close(); document.removeEventListener('visibilitychange', onVis); };
