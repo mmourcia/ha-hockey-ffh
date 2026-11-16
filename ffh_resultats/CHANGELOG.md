@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.0
+- Score en direct collaboratif (non officiel) : sur la fiche d'un match, de 3 h avant à 6 h après le coup d'envoi, n'importe quel spectateur peut « saisir ce match » (aucun compte, aucune validation à gérer). Il indique le quart-temps (Q1-Q4, pause, fin du match) et touche « But » pour chaque équipe.
+- Concordance : chaque saisisseur a son propre compteur ; un but est « confirmé ✓N » quand plusieurs spectateurs l'ont vu (même équipe, même quart-temps), sinon « à confirmer ». La période affichée est celle de la majorité.
+- Affichage : bloc « En direct » (score, buts par quart-temps, nombre de confirmations), pastille ● Q2 / Pause / Terminé sur les cartes de match et l'accueil, alerte de but non officiel pour les équipes favorites. Tout est étiqueté non officiel et disparaît à la publication de la feuille FFH.
+- Garde-fous : identifiant anonyme, limite par adresse (150 saisies / 10 min), 30 saisisseurs et 30 buts max par match, saisie fermée une fois la feuille officielle publiée. Données dans DATA_DIR/live.json, purgées après 36 h.
+
 ## 1.9.0
 - Ergonomie : la date passe devant l'heure sur les cartes de match ; 4 onglets (Actus accessible depuis l'accueil) ; filtres de la page Matchs repliés derrière un bouton ; premier lancement guidé (« Quelle est votre équipe ? »).
 - Équipes homonymes : compétition et catégorie affichées partout (recherche, listes), recherche aussi par club.

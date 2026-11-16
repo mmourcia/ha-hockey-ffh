@@ -1,6 +1,7 @@
 // Backend FFH : proxy + cache + normalisation des API officielles (championnats.ffhockey.org/rest2)
 // Zéro dépendance. Usage : node server.js  (PORT=8080)
-import { buildIcs, parseTeams } from './ics.js';
+import { buildIcs, parseTeams, parisToDate } from './ics.js';
+import { createLive } from './live.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,6 +24,9 @@ const UA = 'FFH-Resultats-PWA/1.0';
 const INCLUDE_YOUTH = process.env.INCLUDE_YOUTH === 'true';
 const push = createPush(DATA);
 const usage = createStats(DATA);
+const live = createLive(DATA);
+const liveRate = new Map(); // ip -> { t, n }
+const liveLimited = (ip) => { const t = Date.now(), r = liveRate.get(ip); if (!r || t - r.t > 600e3) { liveRate.set(ip, { t, n: 1 }); return false; } return ++r.n > 150; };
 const health = { start: Date.now(), refreshes: [], errors: [], changes: [], news: null, refreshing: false, lastOk: null };
 const note = (arr, v, n = 15) => { arr.unshift(v); arr.length = Math.min(arr.length, n); };
 const REFRESH_MS = +process.env.REFRESH_MS || 5 * 60e3;
@@ -272,6 +276,27 @@ const api = async (req, res, url) => {
       }).catch(() => null);
       return send(req, res, 200, w || {}, { 'cache-control': 'public, max-age=1800' });
     }
+    if (p[0] === 'live') {
+      const noStore = { 'cache-control': 'no-store' };
+      if (!p[1]) return send(req, res, 200, live.summary(), noStore);
+      const idx = await ensure(season);
+      const m = idx.matches.find((x) => String(x.id) === p[1]);
+      if (!m || m.bye) return send(req, res, 404, { error: 'Match introuvable' });
+      if (req.method === 'GET') return send(req, res, 200, { official: m.status === 'played', ...live.view(m.id, req.headers['x-vid']) }, noStore);
+      if (req.method !== 'POST') return send(req, res, 405, { error: 'GET ou POST' });
+      const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+      if (liveLimited(ip)) return send(req, res, 429, { error: 'Trop de saisies, patientez quelques minutes.' });
+      if (m.status === 'played' || m.status === 'forfeit' || m.status === 'cancelled') return send(req, res, 409, { error: 'La feuille officielle est déjà publiée : saisie fermée.' });
+      const start = parisToDate(m.date || '');
+      const timed = (m.date || '').slice(11, 16) !== '00:00';
+      const now = Date.now();
+      if (!start || (process.env.LIVE_OPEN_ALWAYS ? false : timed ? (now < start - 3 * 3600e3 || now > start.getTime() + 6 * 3600e3) : (now < start - 12 * 3600e3 || now > start.getTime() + 36 * 3600e3))) return send(req, res, 409, { error: 'La saisie n’est ouverte que le jour du match (de 3 h avant à 6 h après le coup d’envoi).' });
+      const body = await new Promise((ok, ko) => { let b = ''; req.on('data', (d) => { b += d; if (b.length > 2048) req.destroy(); }).on('end', () => ok(b)).on('error', ko); });
+      let j = {}; try { j = JSON.parse(body || '{}'); } catch {}
+      const r = live.report(m.id, j.vid, j);
+      if (r.error) return send(req, res, 400, r);
+      return send(req, res, 200, { official: false, ...live.view(m.id, j.vid) }, noStore);
+    }
     if (p[0] === 'news') return send(req, res, 200, await getNews(), { 'cache-control': 'public, max-age=300' });
     if (p[0] === 'health') return send(req, res, 200, { ok: true, season: currentSeason, updated: store[currentSeason]?.updated });
     send(req, res, 404, { error: 'not found' });
@@ -342,4 +367,4 @@ if (ADMIN_PORT) http.createServer(async (req, res) => {
   } catch (e) { json(500, { error: e.message }); }
 }).listen(ADMIN_PORT, () => console.log(`Panneau d'administration (ingress) → :${ADMIN_PORT}`));
 
-for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { usage.save(); } catch {} process.exit(0); });
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { usage.save(); live.save(); } catch {} process.exit(0); });

@@ -1,6 +1,6 @@
 {
   "name": "ffh-resultats",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "PWA résultats Fédération Française de Hockey (gazon / salle / développement)",
   "type": "module",
   "scripts": { "start": "node server.js", "test": "node --test" },

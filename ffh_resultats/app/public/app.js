@@ -58,16 +58,32 @@ const discLabel = (d) => ({ GAZON: 'Gazon', SALLE: 'Salle', DEVELOP: 'Développe
 const isLate = (m) => m.status === 'upcoming' && m.date && new Date(m.date.replace(' ', 'T')).getTime() < Date.now() - 2 * 3600e3;
 const isLive = (m) => { if (m.status !== 'upcoming' || !m.date) return false; const t = new Date(m.date.replace(' ', 'T')).getTime(); return Date.now() >= t && Date.now() < t + 2 * 3600e3; };
 
+// ---------- suivi en direct collaboratif (non officiel) ----------
+let LIVE = {};
+const PL = { Q1: 'Q1', Q2: 'Q2', Q3: 'Q3', Q4: 'Q4', PAUSE: 'Pause', END: 'Terminé' };
+async function loadLive() {
+  try {
+    const next = await (await fetch('/api/live', { cache: 'no-store' })).json();
+    const prev = LIVE; LIVE = next;
+    for (const m of D?.matches || []) {
+      const a = next[m.id], b = prev[m.id];
+      if (a && b && m.status !== 'played' && isFavMatch(m) && a.s.join('-') !== b.s.join('-')) toast(`⚽ ${m.t1.name} ${a.s[0]} - ${a.s[1]} ${m.t2.name} (non officiel)`);
+    }
+    if (JSON.stringify(prev) !== JSON.stringify(next) && /^(#\/?|#\/matchs.*)$/.test(location.hash)) route(true);
+  } catch {}
+}
+
 // ---------- composants ----------
 function matchCard(m, { showComp = false } = {}) {
   const played = m.status === 'played';
   const w = played ? (m.s1 > m.s2 ? 1 : m.s2 > m.s1 ? 2 : 0) : 0;
   const hh = hhmm(m);
-  const when = !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
+  const lv = !played && LIVE[m.id];
+  const when = lv && m.date ? `${dateBlock(m)}<span class="h live">● ${PL[lv.p] || 'En direct'}</span>` : !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
   const comp = IDX.comp[m.comp];
   const name = (t, i) => `<div class="${w === i ? 'win' : ''}"><span class="n">${esc(t.name)}</span>${isFavTeam(t) ? ' <span style="color:#f5b301">★</span>' : ''}</div>`;
-  const score = m.bye ? '' : played ? `<div class="${w === 2 ? 'lose' : ''}">${m.s1}</div><div class="${w === 1 ? 'lose' : ''}">${m.s2}</div>` : '';
-  return `<a class="match ${isFavMatch(m) ? 'fav-m' : ''}" href="#/match/${m.id}"><div class="m-when">${when}</div><div class="m-teams">${name(m.t1, 1)}${name(m.t2, 2)}${showComp && comp ? `<div class="muted small"><span class="n">${esc(comp.name)}${m.round ? ' · ' + esc(m.round) : ''}</span></div>` : ''}</div><div class="m-score">${score}</div></a>`;
+  const score = m.bye ? '' : lv ? `<div class="lv">${lv.s[0]}</div><div class="lv">${lv.s[1]}</div>` : played ? `<div class="${w === 2 ? 'lose' : ''}">${m.s1}</div><div class="${w === 1 ? 'lose' : ''}">${m.s2}</div>` : '';
+  return `<a class="match ${isFavMatch(m) ? 'fav-m' : ''}" href="#/match/${m.id}"><div class="m-when">${when}</div><div class="m-teams">${name(m.t1, 1)}${name(m.t2, 2)}${lv ? '<div class="muted small">⚠ score non officiel</div>' : ''}${showComp && comp ? `<div class="muted small"><span class="n">${esc(comp.name)}${m.round ? ' · ' + esc(m.round) : ''}</span></div>` : ''}</div><div class="m-score">${score}</div></a>`;
 }
 function groupedMatches(ms) {
   const g = {};
@@ -84,6 +100,10 @@ const views = {};
 const WX = (c) => (c === 0 ? '☀️' : c <= 2 ? '🌤️' : c === 3 ? '☁️' : c <= 48 ? '🌫️' : c <= 57 ? '🌦️' : c <= 67 ? '🌧️' : c <= 77 ? '❄️' : c <= 82 ? '🌦️' : c <= 86 ? '🌨️' : '⛈️');
 const mapsUrl = (m) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([m.venue, m.city].filter(Boolean).join(' '))}`;
 const shareText = (m) => `🏑 ${m.t1.name} – ${m.t2.name}\n📅 ${m.date ? dayLong(m.date.slice(0, 10)) : ''}${hhmm(m) ? ' à ' + hhmm(m) : ''}${m.venue ? `\n📍 ${m.venue}${m.city ? ', ' + m.city : ''}` : ''}\n${location.origin}/#/match/${m.id}`;
+function liveHome() {
+  const ms = D.matches.filter((m) => LIVE[m.id] && m.status !== 'played' && !m.bye).sort((x, y) => isFavMatch(y) - isFavMatch(x));
+  return ms.length ? `<h2>● En direct <span class="tag warn" style="margin-left:6px">non officiel</span></h2><div class="card">${ms.map((m) => matchCard(m, { showComp: true })).join('')}</div>` : '';
+}
 function weekBlock() {
   const now = Date.now(), t = (m) => new Date((m.date || '').replace(' ', 'T')).getTime();
   const ms = D.matches.filter((m) => !m.bye && m.date && isFavMatch(m) && (m.status === 'upcoming') && t(m) > now - 2 * 3600e3 && t(m) < now + 8 * 864e5).sort((x, y) => t(x) - t(y));
@@ -101,8 +121,9 @@ views.home = async () => {
   const t = (m) => new Date((m.date || '').replace(' ', 'T')).getTime();
   const now = Date.now();
   let h = '';
-  if (!hasFavs()) h += `<div class="hero"><h1>Quelle est votre équipe ?</h1><p>Tapez le nom de votre club ou de votre équipe, puis touchez l’étoile : vos matchs, classements et joueurs apparaissent ici.</p><input class="search" id="hq" type="search" placeholder="Ex. Lille, Wattignies U13, Marcq…" autocomplete="off"><div id="hr" class="hero-res"></div></div>`;
+  if (!hasFavs()) h += liveHome() + `<div class="hero"><h1>Quelle est votre équipe ?</h1><p>Tapez le nom de votre club ou de votre équipe, puis touchez l’étoile : vos matchs, classements et joueurs apparaissent ici.</p><input class="search" id="hq" type="search" placeholder="Ex. Lille, Wattignies U13, Marcq…" autocomplete="off"><div id="hr" class="hero-res"></div></div>`;
   else {
+    h += liveHome();
     h += weekBlock();
     h += `<h2>Mes équipes<a href="#/equipes">Gérer</a></h2><div class="card">`;
     h += favs.teams.map((id) => {
@@ -431,6 +452,48 @@ views.equipe = async (id, tab) => {
   }
 };
 
+const inWindow = (m) => { if (!m.date || m.status !== 'upcoming') return false; const t = new Date(m.date.replace(' ', 'T')).getTime(), now = Date.now(); return hhmm(m) ? now > t - 3 * 3600e3 && now < t + 6 * 3600e3 : m.date.slice(0, 10) === todayKey(); };
+async function liveApi(id, body) {
+  const r = await fetch('/api/live/' + id, body ? { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ vid: VID, ...body }) } : { headers: { 'x-vid': VID }, cache: 'no-store' });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status); return j;
+}
+function liveHtml(m, v, scoring) {
+  const T = (i) => esc(m['t' + (i + 1)].name), open = inWindow(m);
+  if (!v.reporters && !open) return '';
+  const byQ = [1, 2, 3, 4].map((q) => ({ q, gs: v.goals.filter((g) => g.q === q) })).filter((x) => x.gs.length);
+  const head = v.reporters ? `<div class="lv-top"><span class="per ${v.period === 'END' ? 'end' : ''}">${v.period ? (v.period === 'END' ? 'Match terminé' : v.period === 'PAUSE' ? 'Pause' : 'Quart-temps ' + v.period.slice(1)) : 'En cours'}</span><span class="muted small">${v.reporters} spectateur${v.reporters > 1 ? 's' : ''} · ${v.votes} d’accord sur la période</span></div>
+    <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>${v.pending[0] + v.pending[1] ? `<div class="small center" style="color:var(--warn)">+${v.pending[0] + v.pending[1]} but${v.pending[0] + v.pending[1] > 1 ? 's' : ''} à confirmer (vu par un seul spectateur)</div>` : ''}
+    ${byQ.map(({ q, gs }) => `<div class="lv-q"><span class="q">Q${q}</span><div>${gs.map((g) => `<div class="gl"><span>⚽ ${T(g.side)}</span><span class="cf ${g.confirmed ? 'ok' : 'wait'}">${g.confirmed ? '✓ ' + g.support : 'à confirmer'}</span></div>`).join('')}</div></div>`).join('')}
+    ${v.period === 'END' ? '<div class="small muted center">Dernier score saisi : la feuille officielle FFH fera foi.</div>' : ''}` : '<p class="muted" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score !</p>';
+  const mine = v.mine || { p: null, goals: [] };
+  const panel = scoring ? `<div class="scorer"><div class="lv-top"><b>Vous saisissez ce match</b><button class="link" data-stop>Arrêter</button></div>
+    <div class="small muted">Où en est le match ?</div><div class="chips">${['Q1', 'Q2', 'Q3', 'Q4', 'PAUSE', 'END'].map((p) => `<button class="chip ${mine.p === p ? 'on' : ''}" data-pp="${p}">${p === 'PAUSE' ? 'Pause' : p === 'END' ? 'Fin du match' : p}</button>`).join('')}</div>
+    <div class="gbtns"><button class="gb" data-g="0">⚽ But<span>${T(0)}</span></button><button class="gb" data-g="1">⚽ But<span>${T(1)}</span></button></div>
+    <div id="qask" hidden><div class="small muted">Dans quel quart-temps ?</div><div class="chips">${[1, 2, 3, 4].map((q) => `<button class="chip" data-gq="${q}">Q${q}</button>`).join('')}</div></div>
+    <button class="btn" data-undo ${mine.goals.length ? '' : 'disabled'}>↩ Annuler mon dernier but${mine.goals.length ? ` (${mine.goals.length} saisis)` : ''}</button></div>`
+    : open ? '<button class="btn primary" data-start>📣 Je saisis ce match</button>' : '';
+  return `<h2>En direct <span class="tag warn" style="margin-left:6px">non officiel</span></h2><div class="card pad lv-card">${head}${panel}<p class="muted small" style="margin:10px 0 0">Score saisi par des spectateurs présents au bord du terrain, sans vérification de la FFH. Un but est confirmé quand plusieurs spectateurs indépendants l’ont saisi. Le résultat officiel fait foi.</p></div>`;
+}
+let liveTimer = null;
+async function startLive(m) {
+  const box = $('#live'); if (!box) return;
+  const key = 'scoring.' + m.id; let v = { reporters: 0, goals: [], score: [0, 0], pending: [0, 0], mine: null };
+  const draw = () => {
+    if (!$('#live')) return;
+    box.innerHTML = liveHtml(m, v, store.get(key, false) && inWindow(m));
+    const act = async (body, ok) => { try { v = await liveApi(m.id, body); draw(); ok?.(); } catch (e) { toast(e.message); } };
+    box.querySelector('[data-start]')?.addEventListener('click', () => { store.set(key, true); draw(); });
+    box.querySelector('[data-stop]')?.addEventListener('click', () => { store.set(key, false); draw(); });
+    box.querySelectorAll('[data-pp]').forEach((b) => (b.onclick = () => act({ action: 'period', p: b.dataset.pp })));
+    box.querySelector('[data-undo]')?.addEventListener('click', () => act({ action: 'undo' }));
+    const cur = v.mine?.p && /^Q\d$/.test(v.mine.p) ? +v.mine.p[1] : 0; let side = 0;
+    box.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => { side = +b.dataset.g; if (cur) act({ action: 'goal', side, q: cur }, () => toast('But enregistré')); else $('#qask').hidden = false; }));
+    box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); v = await liveApi(m.id, { action: 'goal', side, q }); draw(); toast('But enregistré'); } catch (e) { toast(e.message); } }));
+  };
+  const poll = async () => { try { const n = await liveApi(m.id); if (n.official) { box.innerHTML = ''; clearInterval(liveTimer); return; } v = n; if (!box.contains(document.activeElement) || !document.activeElement?.matches('button')) draw(); } catch {} };
+  draw(); await poll();
+  clearInterval(liveTimer); liveTimer = setInterval(() => { if (!document.hidden) poll(); }, 8000);
+}
 async function preMatch(m) {
   const box = $('#pre'); if (!box) return;
   const pl = (id) => D.matches.filter((x) => !x.bye && x.status === 'played' && (x.t1.id === id || x.t2.id === id)).sort((x, y) => (y.date || '').localeCompare(x.date || ''));
@@ -456,9 +519,9 @@ views.match = async (id) => {
   <div class="vs"><a class="tn" href="#/equipe/${m.t1.id}">${esc(m.t1.name)}</a><div class="big">${played ? `${m.s1} - ${m.s2}` : m.status === 'forfeit' ? 'Forfait' : 'vs'}</div><a class="tn" href="#/equipe/${m.t2.id}">${esc(m.t2.name)}</a></div>
   <div class="kv"><span>📅 ${m.date ? esc(dayLong(m.date.slice(0, 10))) : 'Date à définir'}${hhmm(m) ? ' · ' + hhmm(m) : ''}</span>${m.venue ? `<span>📍 ${esc(m.venue)}${m.city ? ', ' + esc(m.city) : ''}</span>` : ''}${m.reason ? `<span class="tag warn">${esc(m.reason)}</span>` : ''}</div>
   <div id="goals" class="small" style="margin-top:8px"></div><p style="margin:12px 0 0"><button class="btn" id="share">Partager</button> ${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="https://www.openstreetmap.org/search?query=${encodeURIComponent(m.venue + ' ' + (m.city || ''))}">Itinéraire</a>` : ''}</p></div></div>
-  <div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
+  <div id="live"></div><div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
   $('#share').onclick = async () => { const data = { title: `${m.t1.name} – ${m.t2.name}`, text: played ? `${m.t1.name} ${m.s1}-${m.s2} ${m.t2.name}` : `${m.t1.name} – ${m.t2.name}`, url: location.href }; try { navigator.share ? await navigator.share(data) : (await navigator.clipboard.writeText(location.href), toast('Lien copié')); } catch {} };
-  if (m.status === 'upcoming' || m.status === 'stopped') preMatch(m);
+  if (m.status === 'upcoming' || m.status === 'stopped') { preMatch(m); startLive(m); }
   if (!m.sheet) return;
   try {
     const s = await api('match/' + id);
@@ -497,6 +560,7 @@ const notFound = () => (app.innerHTML = '<div class="empty">Page introuvable. <a
 
 // ---------- routeur ----------
 async function route(keep) {
+  if (keep !== true) clearInterval(liveTimer);
   const [, name = '', a, b] = location.hash.replace(/^#/, '').split('/');
   const v = { '': 'home', matchs: 'matchs', comps: 'comps', comp: 'comp', clubs: 'equipes', equipes: 'equipes', club: 'club', equipe: 'equipe', match: 'match', actus: 'actus', search: 'search', buteurs: 'buteurs', joueurs: 'joueurs', joueur: 'joueur', arbitres: 'arbitres', arbitre: 'arbitre', agenda: 'agenda' }[name] || 'home';
   const tab = { home: 'home', matchs: 'matchs', match: 'matchs', comps: 'comps', comp: 'comps', buteurs: 'comps', joueurs: 'comps', joueur: 'comps', arbitres: 'comps', arbitre: 'comps', equipes: 'equipes', club: 'equipes', equipe: 'equipes', agenda: 'equipes', actus: 'home', search: 'home' }[v];
@@ -567,6 +631,6 @@ function diffAlerts() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   bellState(); syncPush(false);
   track('hello', { favs: favs.teams, pwa: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true });
-  await route(); diffAlerts();
+  await route(); diffAlerts(); loadLive(); setInterval(() => { if (!document.hidden) loadLive(); }, 20e3);
   setInterval(async () => { if (document.hidden) return; if (await load()) { diffAlerts(); if (!/^#\/(search|equipes|clubs)/.test(location.hash)) route(true); } }, 60e3);
 })();
