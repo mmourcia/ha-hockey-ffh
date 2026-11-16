@@ -123,3 +123,23 @@ test('pause : on sait après quel quart-temps (fin Q1, mi-temps, fin Q3…)', ()
   tick(1000); l.report('m1', A, { action: 'period', p: 'Q3' });
   assert.equal(l.view('m1').lastQ, null);
 });
+
+test('modifier / supprimer une de mes entrées', () => {
+  const { l } = mk();
+  l.report('m1', A, { action: 'goal', side: 0, q: 1, who: 'Mou' });
+  let v = l.view('m1', A); const id = v.mine.goals[0].id; assert.ok(id);
+  assert.ok(l.report('m1', B, { action: 'edit', id, who: 'X' }).error); // pas celle d'un autre
+  l.report('m1', A, { action: 'edit', id, who: 'HANNOIR YVAN', q: 2, side: 1 });
+  v = l.view('m1', A); assert.equal(v.goals[0].who, 'HANNOIR YVAN'); assert.equal(v.goals[0].q, 2); assert.equal(v.goals[0].side, 1); assert.deepEqual(v.score, [0, 1]);
+  assert.deepEqual(v.events[0].ids, [id]);
+  l.report('m1', A, { action: 'note', txt: 'Belle action' }); const nid = l.view('m1', A).mine.items[0].id;
+  l.report('m1', A, { action: 'edit', id: nid, txt: 'Très belle action' }); assert.equal(l.view('m1').events.find((e) => e.k === 'note').txt, 'Très belle action');
+  assert.ok(l.report('m1', A, { action: 'edit', id: nid, txt: '' }).error);
+  l.report('m1', A, { action: 'del', id: nid }); l.report('m1', A, { action: 'del', id });
+  v = l.view('m1', A); assert.equal(v.events.length, 0); assert.deepEqual(v.score, [0, 0]);
+});
+test('pause : durée du quart-temps terminé', () => {
+  const { l, tick } = mk();
+  l.report('m1', A, { action: 'period', p: 'Q1' }); tick(6 * 60e3); l.report('m1', A, { action: 'period', p: 'PAUSE' });
+  assert.equal(l.view('m1').lastQMs, 6 * 60e3);
+});

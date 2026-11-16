@@ -133,3 +133,6 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 /* 1.14 : « Qui a marqué ? » après le but */
 .open.ask{border-width:2px}.open.ask .cmt{margin:6px 0}.open.ask .sug{margin:0 0 4px}
 .open.ask{padding:8px}.open.ask .sug{gap:5px}.open.ask .sug .chip{font-size:12px;padding:4px 9px}
+/* 1.15 : modification d'une entrée de la frise */
+.ev .ed{flex:none;align-self:flex-start;padding:2px 6px;font-size:15px;color:var(--mute)}
+.editor{margin:4px 0 8px}.editor .small{margin:6px 0 2px}.editor .cmt{flex-wrap:wrap;margin-top:8px}.editor .cmt .btn{flex:1}

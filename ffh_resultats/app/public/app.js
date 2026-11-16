@@ -62,14 +62,15 @@ const isLive = (m) => { if (m.status !== 'upcoming' || !m.date) return false; co
 let LIVE = {};
 const PL = { Q1: 'Q1', Q2: 'Q2', Q3: 'Q3', Q4: 'Q4', PAUSE: 'Pause', END: 'Terminé' };
 // libellé d'une pause selon le quart-temps qui vient de se terminer
-const pauseLabel = (lq) => ({ 1: 'Fin du Q1', 2: 'Mi-temps', 3: 'Fin du Q3', 4: 'Fin du Q4' }[lq] || 'Pause');
+// « Fin Qx » / « Mi-temps » seulement si le quart-temps est (presque) allé au bout ; sinon c'est un arrêt en cours de quart
+const pauseLabel = (lq, ms) => { if (!lq) return 'Pause'; if (ms != null && ms < 13 * 60e3) return `Pause · Q${lq} ${Math.floor(ms / 60e3)}'`; return { 1: 'Fin Q1', 2: 'Mi-temps', 3: 'Fin Q3', 4: 'Fin Q4' }[lq]; };
 async function loadLive() {
   try {
     const next = await (await fetch('/api/live', { cache: 'no-store' })).json();
     const prev = LIVE; LIVE = next;
     for (const m of D?.matches || []) {
       const a = next[m.id], b = prev[m.id];
-      if (a && b && m.status !== 'played' && isFavMatch(m) && a.s.join('-') !== b.s.join('-')) toast(`⚽ ${m.t1.name} ${a.s[0]} - ${a.s[1]} ${m.t2.name} (non officiel)`);
+      if (a && b && m.status !== 'played' && isFavMatch(m) && a.s.join('-') !== b.s.join('-')) toast(`🥅 ${m.t1.name} ${a.s[0]} - ${a.s[1]} ${m.t2.name} (non officiel)`);
     }
     if (JSON.stringify(prev) !== JSON.stringify(next) && /^(#\/?|#\/matchs.*)$/.test(location.hash)) route(true);
   } catch {}
@@ -81,7 +82,7 @@ function matchCard(m, { showComp = false } = {}) {
   const w = played ? (m.s1 > m.s2 ? 1 : m.s2 > m.s1 ? 2 : 0) : 0;
   const hh = hhmm(m);
   const lv = !played && LIVE[m.id];
-  const when = lv && m.date ? `${dateBlock(m)}<span class="h live">● ${lv.p === 'PAUSE' ? pauseLabel(lv.lq).replace('Fin du ', 'Fin ') : PL[lv.p] || 'En direct'}${/^Q\d$/.test(lv.p || '') && lv.ck ? ` ${(lv.ck.q - 1) * 15 + Math.min(15, Math.floor(Math.max(0, lv.ck.acc + (lv.ck.since != null ? Date.now() - lv.ck.since : 0)) / 60e3))}'` : ''}</span>` : !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
+  const when = lv && m.date ? `${dateBlock(m)}<span class="h live">● ${lv.p === 'PAUSE' ? pauseLabel(lv.lq, lv.lm) : PL[lv.p] || 'En direct'}${/^Q\d$/.test(lv.p || '') && lv.ck ? ` ${(lv.ck.q - 1) * 15 + Math.min(15, Math.floor(Math.max(0, lv.ck.acc + (lv.ck.since != null ? Date.now() - lv.ck.since : 0)) / 60e3))}'` : ''}</span>` : !m.date ? '<b>—</b>' : played ? dateBlock(m, 'FIN') : m.status === 'forfeit' ? dateBlock(m, 'FORFAIT') : m.status === 'cancelled' ? dateBlock(m, 'ANNULÉ') : m.status === 'stopped' ? dateBlock(m, 'ARRÊTÉ') : isLate(m) ? dateBlock(m, '?') : isLive(m) ? `${dateBlock(m)}<span class="h live">● ${hh || 'EN COURS'}</span>` : dateBlock(m, hh || '—');
   const comp = IDX.comp[m.comp];
   const name = (t, i) => `<div class="${w === i ? 'win' : ''}"><span class="n">${esc(t.name)}</span>${isFavTeam(t) ? ' <span style="color:#f5b301">★</span>' : ''}</div>`;
   const score = m.bye ? '' : lv ? `<div class="lv">${lv.s[0]}</div><div class="lv">${lv.s[1]}</div>` : played ? `<div class="${w === 2 ? 'lose' : ''}">${m.s1}</div><div class="${w === 1 ? 'lose' : ''}">${m.s2}</div>` : '';
@@ -362,8 +363,8 @@ views.arbitre = async (id) => {
 // ---------- Joueurs ----------
 let scSort = { k: 'goals', dir: 1 };
 let jState = { q: '', mine: true, sort: 'goals' };
-const JSORTS = [['goals', '⚽ Buts'], ['cards', 'Cartons (tous)'], ['green', '🟩'], ['yellow', '🟨'], ['red', '🟥'], ['matches', 'Matchs']];
-const statCells = (r) => `<span title="Buts">⚽ <b>${r.goals}</b></span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs joués">${r.matches} match${r.matches > 1 ? 's' : ''}</span>`;
+const JSORTS = [['goals', '🥅 Buts'], ['cards', 'Cartons (tous)'], ['green', '🟩'], ['yellow', '🟨'], ['red', '🟥'], ['matches', 'Matchs']];
+const statCells = (r) => `<span title="Buts">🥅 <b>${r.goals}</b></span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs joués">${r.matches} match${r.matches > 1 ? 's' : ''}</span>`;
 views.joueurs = async () => {
   const mineTeams = favs.teams;
   app.innerHTML = `<h1>Compétitions</h1>${compTabs('joueurs')}
@@ -395,7 +396,7 @@ views.joueur = async (id) => {
     const tot = p.rows.reduce((a, r) => ({ goals: a.goals + r.goals, green: a.green + r.green, yellow: a.yellow + r.yellow, red: a.red + r.red, matches: a.matches + r.matches }), { goals: 0, green: 0, yellow: 0, red: 0, matches: 0 });
     app.innerHTML = `<h1 style="margin-bottom:2px">${esc(p.name)}</h1><div class="stats" style="margin-bottom:10px">${statCells(tot)}</div>
     ${p.rows.map((r) => `<div class="card pad" style="margin-bottom:8px"><a href="#/equipe/${r.team.id}"><b>${esc(r.team.name)}</b></a><div class="muted small">${esc(r.comp.name)}</div><div class="stats">${statCells(r)}</div></div>`).join('')}
-    <h2>Match par match</h2><div class="card">${p.games.map((g) => g.match ? `<div>${matchCard(g.match, { showComp: true })}<div class="stats small" style="padding:0 12px 8px 74px">${g.goals ? `⚽ ${g.goals} ` : ''}${'🟩'.repeat(g.c[0])}${'🟨'.repeat(g.c[1])}${'🟥'.repeat(g.c[2])}${!g.goals && !g.c.some(Boolean) ? '<span class="muted">—</span>' : ''}</div></div>` : '').join('')}</div>`;
+    <h2>Match par match</h2><div class="card">${p.games.map((g) => g.match ? `<div>${matchCard(g.match, { showComp: true })}<div class="stats small" style="padding:0 12px 8px 74px">${g.goals ? `🥅 ${g.goals} ` : ''}${'🟩'.repeat(g.c[0])}${'🟨'.repeat(g.c[1])}${'🟥'.repeat(g.c[2])}${!g.goals && !g.c.some(Boolean) ? '<span class="muted">—</span>' : ''}</div></div>` : '').join('')}</div>`;
   } catch { app.innerHTML = '<div class="empty">Joueur introuvable. <a class="btn" href="#/joueurs">Rechercher</a></div>'; }
 };
 
@@ -510,35 +511,48 @@ const showName = (p) => `${p.name}${p.no ? ' (n°' + p.no + ')' : ''}`;
 function liveTop(m, v, scoring, ui = {}) {
   const T = (i) => esc(m['t' + (i + 1)].name), open = inWindow(m);
   if (!liveVisible(m, v)) return '';
-  const per = v.period ? (v.period === 'END' ? 'Fin de match' : v.period === 'PAUSE' ? pauseLabel(v.lastQ) : 'Quart-temps ' + v.period.slice(1)) : 'En cours';
+  const per = v.period ? (v.period === 'END' ? 'Fin de match' : v.period === 'PAUSE' ? pauseLabel(v.lastQ, v.lastQMs) : 'Q' + v.period.slice(1)) : 'En cours';
   const clk = clockOf(v);
   const board = v.reporters ? `<div class="lv-top"><span class="per ${v.period === 'END' ? 'end' : ''}">${per}${clk ? ` · <span id="clk">${clk.txt}</span>` : ''}</span><span class="muted small">${v.reporters} spectateur${v.reporters > 1 ? 's' : ''} · <b style="color:var(--warn)">non officiel</b></span></div>
     <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>${clk ? `<div class="small muted center" style="margin:-2px 0 6px">⏱ ≈ <b id="clk2">${clk.minutes}'</b> de jeu · temps <b>indicatif</b> : il n’inclut pas les arrêts de jeu (penalty corners, strokes, blessures…)</div>` : ''}` : `<div class="lv-score"><span>${T(0)}</span><b>0 – 0</b><span>${T(1)}</span></div><p class="muted small center" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score ! <b style="color:var(--warn)">Non officiel.</b></p>`;
   const mine = v.mine || { p: null, goals: [], open: [], notes: 0 };
-  const side = (i) => `<div class="lv-col"><div class="lv-h">${T(i)}</div><button class="gb" data-g="${i}">⚽ But</button><button class="gb alt" data-sp="pc:${i}">🏑 Penalty corner</button><button class="gb alt" data-sp="stroke:${i}">🎯 Stroke</button></div>`;
-  const ask = ui.ask ? `<div class="open ask"><div class="lv-top" style="margin-bottom:2px"><b>⚽ But ${T(ui.ask.side)} : qui ?</b><button class="link" data-whoskip>🤷 Je ne sais pas</button></div><div class="cmt"><input class="search mini" id="whoq" maxlength="40" autocomplete="off" placeholder="Prénom, nom ou n° (facultatif)" value="${esc(draft.who)}"><button class="btn" data-whook>OK</button></div><div class="sug" id="sug"></div></div>` : '';
+  const side = (i) => `<div class="lv-col"><div class="lv-h">${T(i)}</div><button class="gb" data-g="${i}">🥅 But</button><button class="gb alt" data-sp="pc:${i}">🚩 Penalty corner</button><button class="gb alt" data-sp="stroke:${i}">🎯 Stroke</button></div>`;
+  const ask = ui.ask ? `<div class="open ask"><div class="lv-top" style="margin-bottom:2px"><b>🥅 But ${T(ui.ask.side)} : qui ?</b><button class="link" data-whoskip>🤷 Je ne sais pas</button></div><div class="cmt"><input class="search mini" id="whoq" maxlength="40" autocomplete="off" placeholder="Prénom, nom ou n° (facultatif)" value="${esc(draft.who)}"><button class="btn" data-whook>OK</button></div><div class="sug" id="sug"></div></div>` : '';
   const panel = scoring ? `<div class="scorer"><div class="lv-top"><b>Vous saisissez</b><button class="link" data-stop>Arrêter</button></div>
     ${ask}
     <div class="chips pp">${['Q1', 'Q2', 'Q3', 'Q4', 'PAUSE', 'END'].map((p) => `<button class="chip ${mine.p === p ? 'on' : ''}" data-pp="${p}">${p === 'PAUSE' ? 'Pause' : p === 'END' ? 'Fin' : p}</button>`).join('')}</div>
     <div id="qask" hidden><div class="small muted">Dans quel quart-temps ?</div><div class="chips pp">${[1, 2, 3, 4].map((q) => `<button class="chip" data-gq="${q}">Q${q}</button>`).join('')}</div></div>
     <div class="lv-cols">${side(0)}${side(1)}</div>
-    ${mine.open.map((o) => `<div class="open"><b>${o.k === 'pc' ? '🏑 Penalty corner' : '🎯 Stroke'} ${T(o.side)}</b> <span class="muted small">(Q${o.q})</span> : issue ?<div class="chips pp"><button class="chip" data-res="${o.id}:saved">🧤 Arrêté</button><button class="chip" data-res="${o.id}:but">⚽ But</button><button class="chip" data-res="${o.id}:miss">❌ Non cadré</button></div></div>`).join('')}
+    ${mine.open.map((o) => `<div class="open"><b>${o.k === 'pc' ? '🚩 Penalty corner' : '🎯 Stroke'} ${T(o.side)}</b> <span class="muted small">(Q${o.q})</span> : issue ?<div class="chips pp"><button class="chip" data-res="${o.id}:saved">🧤 Arrêté</button><button class="chip" data-res="${o.id}:but">🥅 But</button><button class="chip" data-res="${o.id}:miss">❌ Non cadré</button></div></div>`).join('')}
     <div class="cmt"><input class="search mini" id="txt" maxlength="140" placeholder="Commentaire (facultatif)" value="${esc(draft.txt)}"><button class="btn" data-note>Publier</button></div>
     <button class="link" data-undo ${mine.goals.length || mine.open.length || mine.notes ? '' : 'disabled'}>↩ Annuler ma dernière saisie</button></div>`
     : open ? '<button class="btn primary" data-start>📣 Je saisis ce match</button>' : '';
   return `<div class="card pad lv-card">${board}${panel}</div>`;
 }
+// éditeur d'une de MES entrées de la frise
+function editorHtml(m, ed) {
+  const T = (i) => esc(m['t' + (i + 1)].name);
+  const chips = (attr, items, cur) => `<div class="chips pp">${items.map(([k, l]) => `<button class="chip ${String(cur) === String(k) ? 'on' : ''}" ${attr}="${k}">${l}</button>`).join('')}</div>`;
+  const team = ed.k !== 'note' ? `<div class="small muted">Équipe</div>${chips('data-es', [[0, T(0)], [1, T(1)]], ed.side)}<div class="small muted">Quart-temps</div>${chips('data-eq', [1, 2, 3, 4].map((q) => [q, 'Q' + q]), ed.q)}` : '';
+  const who = ed.k === 'goal' ? `<div class="small muted">Buteur</div><input class="search mini" id="edwho" maxlength="40" autocomplete="off" placeholder="Prénom, nom ou n° (vide = inconnu)" value="${esc(ed.who)}"><div class="sug" id="edsug"></div>` : '';
+  const res = ed.k === 'pc' || ed.k === 'stroke' ? `<div class="small muted">Issue</div>${chips('data-er', [['saved', '🧤 Arrêté'], ['miss', '❌ Non cadré']], ed.res)}` : '';
+  const txt = ed.k !== 'goal' ? `<div class="small muted">${ed.k === 'note' ? 'Commentaire' : 'Commentaire (facultatif)'}</div><input class="search mini" id="edtxt" maxlength="140" value="${esc(ed.txt)}">` : '';
+  return `<div class="open editor"><b>Modifier ma saisie</b>${team}${who}${res}${txt}<div class="cmt"><button class="btn primary" data-esave>Enregistrer</button><button class="btn" data-ecancel>Annuler</button><button class="btn" data-edel>🗑 Supprimer</button></div></div>`;
+}
 // frise des faits de jeu (le plus récent d'abord) : chrono du quart-temps + badge de validation
-function liveTimeline(m, v) {
+function liveTimeline(m, v, edit) {
   if (!liveVisible(m, v)) return '';
+  const mineIds = new Set([...(v.mine?.goals || []).map((g) => g.id), ...(v.mine?.items || []).map((i) => i.id)]);
   const T = (i) => esc(m['t' + (i + 1)].name), RES = { saved: 'arrêté', miss: 'non cadré' };
   const evRow = (e) => {
     const q = `<div class="q">${e.q ? 'Q' + e.q : '·'}<div class="muted small">${e.c != null ? mmss(e.c) : hmin(e.t)}</div></div>`;
     const badge = e.k === 'note' ? '' : e.support > 1 ? `<span class="cf ok">✓ validé par ${e.support} personnes</span>` : '<span class="cf one">1 personne</span>';
     const body = e.k === 'note' ? `💬 ${esc(e.txt)}`
-      : e.k === 'goal' ? `⚽ <b>But</b> ${T(e.side)}${e.who ? ' – ' + esc(e.who) : ''}${e.via ? ` <span class="muted">(sur ${e.via === 'pc' ? 'penalty corner' : 'stroke'})</span>` : ''}`
-      : `${e.k === 'pc' ? '🏑 <b>Penalty corner</b>' : '🎯 <b>Stroke</b>'} ${T(e.side)} <span class="muted">· ${e.res ? RES[e.res] : 'en cours'}</span>${e.txt ? ' – ' + esc(e.txt) : ''}`;
-    return `<div class="ev">${q}<div class="ev-b"><div>${body}</div>${badge ? `<div>${badge}</div>` : ''}</div></div>`;
+      : e.k === 'goal' ? `🥅 <b>But</b> ${T(e.side)}${e.who ? ' – ' + esc(e.who) : ''}${e.via ? ` <span class="muted">(sur ${e.via === 'pc' ? 'penalty corner' : 'stroke'})</span>` : ''}`
+      : `${e.k === 'pc' ? '🚩 <b>Penalty corner</b>' : '🎯 <b>Stroke</b>'} ${T(e.side)} <span class="muted">· ${e.res ? RES[e.res] : 'en cours'}</span>${e.txt ? ' – ' + esc(e.txt) : ''}`;
+    const mid = (e.ids || []).find((id) => mineIds.has(id));
+    const row = `<div class="ev">${q}<div class="ev-b"><div>${body}</div>${badge ? `<div>${badge}</div>` : ''}</div>${mid ? `<button class="link ed" data-edit="${mid}" aria-label="Modifier cette saisie">✏️</button>` : ''}</div>`;
+    return mid && edit?.id === mid ? row + editorHtml(m, edit) : row;
   };
   return `<h2>Déroulé du match</h2><div class="card pad lv-card">${v.events.length ? `<div class="evs">${v.events.map(evRow).join('')}</div>` : '<div class="muted small">Rien de saisi pour l’instant.</div>'}
     <p class="muted small" style="margin:10px 0 0">Les temps sont ceux du chrono indicatif (hors arrêts de jeu). Saisi par des spectateurs présents au bord du terrain, sans vérification de la FFH. « Validé par N personnes » = le même fait a été saisi par plusieurs spectateurs indépendants. Le résultat officiel fait foi.</p>
@@ -550,7 +564,7 @@ let liveTimer = null, liveStop = null;
 async function startLive(m) {
   const box = $('#live'), tl = $('#livetl'); if (!box || !tl) return;
   const key = 'scoring.' + m.id; let v = { reporters: 0, goals: [], events: [], score: [0, 0], pending: [0, 0], mine: null };
-  let pend = null, ui = {}, rosters = [[], []];
+  let pend = null, ui = {}, rosters = [[], []], edit = null;
   Promise.all([loadRoster(m.t1.id), loadRoster(m.t2.id)]).then((r) => { rosters = r; updSug(); });
   // « Qui a marqué ? » : posé APRÈS l'enregistrement du but (le but compte tout de suite) ; « Je ne sais pas » ferme sans buteur
   const updSug = () => {
@@ -565,7 +579,7 @@ async function startLive(m) {
   const draw = () => {
     if (!$('#live')) return;
     const scoring = sess.get(key) && inWindow(m);
-    box.innerHTML = liveTop(m, v, scoring, ui); tl.innerHTML = liveTimeline(m, v);
+    box.innerHTML = liveTop(m, v, scoring, ui); tl.innerHTML = liveTimeline(m, v, edit);
     // celui qui saisit garde son panneau en haut et la frise en bas de page ; celui qui regarde a la frise juste sous le score
     if (scoring) { if (tl !== app.lastElementChild) app.append(tl); } else if (tl.previousElementSibling !== box) box.after(tl);
     app.querySelector('.band')?.classList.toggle('live', liveVisible(m, v)); // bandeau compact : les équipes sont déjà dans le tableau de score
@@ -574,7 +588,31 @@ async function startLive(m) {
     box.querySelector('[data-whook]')?.addEventListener('click', () => { const t = draft.who.trim(); if (!t) { ui = {}; draw(); return; } const c = candidates(rosters[ui.ask.side] || [], t); if (c.length === 1) setWho(c[0].name); else if (c.length > 1) toast('Plusieurs joueurs correspondent : touchez le bon'); else setWho(t); });
     box.querySelector('#txt')?.addEventListener('input', (e) => (draft.txt = e.target.value));
     updSug();
-    const act = async (body, after) => { try { v = await liveApi(m.id, body); clockOffset = (v.now || Date.now()) - Date.now(); if (body.action === 'note') draft.txt = ''; if (body.action === 'undo') ui = {}; else if (!after) ui = ui.ask ? ui : {}; if (after) { ui = {}; draw(); after(); } else draw(); toast('Enregistré'); } catch (e) { toast(e.message); } };
+    // ---- modification / suppression d'une de mes entrées de la frise
+    const edSug = () => { const el = $('#edsug'); if (!el || !edit) return; const t = edit.who.trim(), r = rosters[edit.side] || []; const list = t ? candidates(r, t) : r.slice(0, 6); el.innerHTML = list.map((p, k) => `<button class="chip" data-esg="${k}">${esc(showName(p))}</button>`).join(''); el.querySelectorAll('[data-esg]').forEach((b) => (b.onclick = () => { edit.who = list[+b.dataset.esg].name; const i = $('#edwho'); if (i) i.value = edit.who; edSug(); })); };
+    tl.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => { if (edit?.id === b.dataset.edit) { edit = null; draw(); return; } const e = v.events.find((x) => (x.ids || []).includes(b.dataset.edit)); if (!e) return; edit = { id: b.dataset.edit, k: e.k, side: e.side ?? 0, q: e.q || 1, who: e.who || '', txt: e.txt || '', res: e.res || null }; draw(); }));
+    tl.querySelectorAll('[data-es]').forEach((b) => (b.onclick = () => { edit.side = +b.dataset.es; draw(); }));
+    tl.querySelectorAll('[data-eq]').forEach((b) => (b.onclick = () => { edit.q = +b.dataset.eq; draw(); }));
+    tl.querySelectorAll('[data-er]').forEach((b) => (b.onclick = () => { edit.res = b.dataset.er; draw(); }));
+    tl.querySelector('#edwho')?.addEventListener('input', (e) => { edit.who = e.target.value; edSug(); });
+    tl.querySelector('#edtxt')?.addEventListener('input', (e) => (edit.txt = e.target.value));
+    tl.querySelector('[data-ecancel]')?.addEventListener('click', () => { edit = null; draw(); });
+    tl.querySelector('[data-edel]')?.addEventListener('click', () => { if (confirm('Supprimer cette saisie ?')) act({ action: 'del', id: edit.id }); });
+    tl.querySelector('[data-esave]')?.addEventListener('click', () => {
+      const ed = edit; let body = { action: 'edit', id: ed.id };
+      if (ed.k === 'note') body.txt = ed.txt;
+      else {
+        body.side = ed.side; body.q = ed.q;
+        if (ed.k === 'goal') {
+          const t = ed.who.trim(), c = t ? candidates(rosters[ed.side] || [], t) : [];
+          if (c.length > 1 && !c.some((p) => norm(p.name) === norm(t))) { toast('Plusieurs joueurs correspondent : touchez le bon'); return; }
+          body.who = !t ? '' : c.length === 1 ? c[0].name : c.find((p) => norm(p.name) === norm(t))?.name || t;
+        } else { if (ed.res) body.res = ed.res; body.txt = ed.txt; }
+      }
+      act(body);
+    });
+    edSug();
+    const act = async (body, after) => { try { v = await liveApi(m.id, body); clockOffset = (v.now || Date.now()) - Date.now(); if (body.action === 'note') draft.txt = ''; if (['edit', 'del'].includes(body.action)) edit = null; if (body.action === 'undo') ui = {}; else if (!after) ui = ui.ask ? ui : {}; if (after) { ui = {}; draw(); after(); } else draw(); toast('Enregistré'); } catch (e) { toast(e.message); } };
     box.querySelector('[data-start]')?.addEventListener('click', () => { sess.set(key, true); draw(); window.scrollTo(0, 0); });
     box.querySelector('[data-stop]')?.addEventListener('click', () => { sess.set(key, false); draw(); });
     tl.querySelector('[data-demo-reset]')?.addEventListener('click', async () => { try { v = await liveApi('demo', { action: 'reset' }); sess.set(key, false); draw(); toast('Démo remise à zéro'); } catch (e) { toast(e.message); } });
@@ -589,7 +627,7 @@ async function startLive(m) {
     box.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { const [k, s] = b.dataset.sp.split(':'); go({ type: 'sp', k, side: +s }); }));
     box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); } catch {} run(q); }));
   };
-  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); return false; } v = { ...n, mine: n.mine ?? v.mine }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!(box.contains(a) && a.matches('input,button'))) draw(); return true; };
+  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); return false; } v = { ...n, mine: n.mine ?? v.mine }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!((box.contains(a) || tl.contains(a)) && a.matches('input,button'))) draw(); return true; };
   const poll = async () => { try { apply(await liveApi(m.id)); } catch {} };
   let es = null, tick = 0, clk = null;
   const stop = () => { clearInterval(liveTimer); clearInterval(clk); es?.close(); document.removeEventListener('visibilitychange', onVis); };
@@ -637,9 +675,9 @@ views.match = async (id) => {
   if (!m.sheet) return;
   try {
     const s = await api('match/' + id);
-    const col = (i) => `<div><div class="small muted" style="margin-bottom:4px"><b>${esc(m['t' + (i + 1)].name)}</b></div>${s.scorers[i].length ? `<div class="pl"><span>⚽</span><span>${s.scorers[i].map((g) => esc(g.name || 'N°' + g.no) + (g.n > 1 ? ' ×' + g.n : '')).join(', ')}</span></div>` : ''}${s.players[i].filter((p) => !isStaff(p)).map((p) => `<div class="pl"><span class="no">${p.gk ? 'GK' : esc(p.shirt)}</span><span class="nm">${esc(p.name)}</span>${p.card ? `<span class="cd ${p.card}" title="Carton"></span>` : ''}</div>`).join('')}${s.players[i].some(isStaff) ? `<div class="small muted" style="margin-top:8px"><b>Encadrement</b></div>${s.players[i].filter(isStaff).map((p) => `<div class="staff"><span class="nm2">${esc(p.name)}</span><span class="muted small">${esc(p.shirt)}</span></div>`).join('')}` : ''}${s.injuries[i] ? `<div class="small muted" style="margin-top:6px">🩹 ${esc(s.injuries[i])}</div>` : ''}</div>`;
+    const col = (i) => `<div><div class="small muted" style="margin-bottom:4px"><b>${esc(m['t' + (i + 1)].name)}</b></div>${s.scorers[i].length ? `<div class="pl"><span>🥅</span><span>${s.scorers[i].map((g) => esc(g.name || 'N°' + g.no) + (g.n > 1 ? ' ×' + g.n : '')).join(', ')}</span></div>` : ''}${s.players[i].filter((p) => !isStaff(p)).map((p) => `<div class="pl"><span class="no">${p.gk ? 'GK' : esc(p.shirt)}</span><span class="nm">${esc(p.name)}</span>${p.card ? `<span class="cd ${p.card}" title="Carton"></span>` : ''}</div>`).join('')}${s.players[i].some(isStaff) ? `<div class="small muted" style="margin-top:8px"><b>Encadrement</b></div>${s.players[i].filter(isStaff).map((p) => `<div class="staff"><span class="nm2">${esc(p.name)}</span><span class="muted small">${esc(p.shirt)}</span></div>`).join('')}` : ''}${s.injuries[i] ? `<div class="small muted" style="margin-top:6px">🩹 ${esc(s.injuries[i])}</div>` : ''}</div>`;
     const gl = (i) => s.scorers[i].map((g) => `${esc(g.name || 'N°' + g.no)}${g.n > 1 ? ' ×' + g.n : ''}`).join(', ');
-    if (s.scorers[0].length + s.scorers[1].length) $('#goals').innerHTML = `<div class="cols" style="text-align:left"><div>⚽ ${gl(0) || '—'}</div><div>⚽ ${gl(1) || '—'}</div></div>`;
+    if (s.scorers[0].length + s.scorers[1].length) $('#goals').innerHTML = `<div class="cols" style="text-align:left"><div>🥅 ${gl(0) || '—'}</div><div>🥅 ${gl(1) || '—'}</div></div>`;
     const cd = s.cards;
     $('#sheet').innerHTML = `<h2>Feuille de match</h2><div class="card"><div class="cols">${col(0)}${col(1)}</div></div>
     ${cd.green + cd.yellow + cd.red ? `<p class="small muted center">Cartons : ${cd.green ? `<span class="cd green"></span> ×${cd.green} ` : ''}${cd.yellow ? `<span class="cd yellow"></span> ×${cd.yellow} ` : ''}${cd.red ? `<span class="cd red"></span> ×${cd.red}` : ''}</p>` : ''}
@@ -731,7 +769,7 @@ function diffAlerts() {
     const old = snap[m.id]; if (old === undefined || old === cur[m.id]) continue;
     const [os, od = null, ov = null] = old.split('|'), [cs] = cur[m.id].split('|');
     const names = `${m.t1.name} – ${m.t2.name}`;
-    if (os !== cs && m.status === 'played') notify(m, 'Résultat FFH', `⚽ ${m.t1.name} ${m.s1} - ${m.s2} ${m.t2.name}`);
+    if (os !== cs && m.status === 'played') notify(m, 'Résultat FFH', `🥅 ${m.t1.name} ${m.s1} - ${m.s2} ${m.t2.name}`);
     else if (od !== null && m.status === 'upcoming' && (od !== (m.date || '') || ov !== (m.venue || ''))) notify(m, 'Match modifié', `🕒 ${names} : ${od !== (m.date || '') ? `nouvel horaire ${m.date ? dayLong(m.date.slice(0, 10)) + (hhmm(m) ? ' ' + hhmm(m) : '') : 'à définir'}` : `nouveau lieu ${m.venue || 'à définir'}`}`);
     else if (os !== cs && m.status === 'cancelled') notify(m, 'Match annulé', `❌ ${names} annulé`);
   }

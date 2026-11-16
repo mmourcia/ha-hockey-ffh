@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.15.0
+- Frise du direct : chaque saisie faite par soi peut être modifiée (✏️) : buteur, équipe, quart-temps, issue d'un penalty corner / stroke, commentaire ; ou supprimée.
+- Libellés : « Q2 » au lieu de « Quart-temps 2 » ; « Fin Q1 / Mi-temps / Fin Q3 » seulement si le quart-temps est allé (presque) au bout (≥ 13 min), sinon « Pause · Q1 6' ».
+- Icônes : 🥅 pour un but (partout dans l'appli), 🚩 pour un penalty corner.
+
 ## 1.14.1
 - Le badge du direct précise l'état : « Quart-temps N · chrono », « Fin du Q1 », « Mi-temps » (pause après le Q2), « Fin du Q3 », « Fin du Q4 », « Fin de match ». Le bouton de saisie reste « Pause » : l'appli déduit le libellé du quart-temps qui vient de se terminer. Pastilles des cartes alignées (« ● Mi-temps »).
 
