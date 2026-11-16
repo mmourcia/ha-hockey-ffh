@@ -1,5 +1,5 @@
 name: "Hockey FFH Résultats"
-version: "1.18.0"
+version: "1.18.1"
 slug: ffh_resultats
 url: "https://github.com/mmourcia/ha-hockey-ffh"
 description: "PWA de résultats de la Fédération Française de Hockey (API FFH, Web Push)"
@@ -22,6 +22,7 @@ options:
   tailscale_hostname: hockey
   include_youth_players: false
   live_input_code: ""
+  contact_email: ""
 schema:
   vapid_subject: str
   refresh_minutes: int(1,60)
@@ -29,3 +30,4 @@ schema:
   tailscale_hostname: str
   include_youth_players: bool
   live_input_code: password?
+  contact_email: str?

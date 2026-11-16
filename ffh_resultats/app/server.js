@@ -22,7 +22,11 @@ const DATA = process.env.DATA_DIR || path.join(ROOT, 'data');
 fs.mkdirSync(DATA, { recursive: true });
 const PORT = +process.env.PORT || 8080;
 const UP = 'https://championnats.ffhockey.org/rest2/';
-const UA = 'FFH-Resultats-PWA/1.0';
+// identité honnête des appels sortants ; l'adresse de contact (option HA `contact_email`) n'est jamais écrite dans le code
+let APP_VERSION = '1'; try { APP_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1'; } catch {}
+const CONTACT = (process.env.CONTACT_EMAIL || '').trim().replace(/[\r\n()]/g, '').slice(0, 120);
+const UA = `Hockey-FFH-Resultats/${APP_VERSION}${CONTACT ? ` (contact: ${CONTACT})` : ''}`;
+const UA_SITE = `Mozilla/5.0 (compatible; Hockey-FFH-Resultats/${APP_VERSION}${CONTACT ? `; contact: ${CONTACT}` : ''})`;
 const INCLUDE_YOUTH = process.env.INCLUDE_YOUTH === 'true';
 const push = createPush(DATA);
 const usage = createStats(DATA);
@@ -187,7 +191,7 @@ const coverage = (season) => { const idx = store[season]; const cm = compsMap(id
 const NEWS_PAGES = ['/', '/actualites/actualite-federale.html', '/actualites/actualites-championnats.html', '/actualites/coup-de-crosse.html'];
 const getNews = () => cached('news', 10 * 60e3, async () => {
   const pages = await Promise.all(NEWS_PAGES.map(async (p) => {
-    const r = await fetch('https://www.ffhockey.org' + p, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; FFH-Resultats-PWA/1.0)' }, signal: AbortSignal.timeout(20e3) });
+    const r = await fetch('https://www.ffhockey.org' + p, { headers: { 'user-agent': UA_SITE }, signal: AbortSignal.timeout(20e3) });
     return r.ok ? parseNewsHtml(await r.text()) : [];
   }).map((p) => p.catch(() => [])));
   const seen = new Map();
@@ -395,7 +399,7 @@ async function probe() {
   const time = async (fn) => { const t = Date.now(); try { await fn(); return { ok: true, ms: Date.now() - t }; } catch (e) { return { ok: false, ms: Date.now() - t, error: e.message }; } };
   const v = {
     api: await time(() => up('Championnats/SaisonEnCours', {}, 1)),
-    site: await time(async () => { const r = await fetch('https://www.ffhockey.org/', { method: 'HEAD', headers: { 'user-agent': 'Mozilla/5.0 (compatible; FFH-Resultats-PWA/1.0)' }, signal: AbortSignal.timeout(10e3) }); if (!r.ok) throw new Error('HTTP ' + r.status); }),
+    site: await time(async () => { const r = await fetch('https://www.ffhockey.org/', { method: 'HEAD', headers: { 'user-agent': UA_SITE }, signal: AbortSignal.timeout(10e3) }); if (!r.ok) throw new Error('HTTP ' + r.status); }),
   };
   probeCache = { t: Date.now(), v }; return v;
 }
