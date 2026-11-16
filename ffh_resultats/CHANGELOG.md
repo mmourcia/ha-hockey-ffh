@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.11.2
+- Panneau HA : le badge de synchronisation affiche l'ancienneté et l'heure de la dernière synchro (« Synchronisation OK · il y a 3 min (14:32) »).
+- Accueil du site : « Résultats FFH synchronisés il y a N min ».
+
 ## 1.11.1
 - Suivi en direct : tous les faits saisis comptent tout de suite (plus de « à confirmer ») ; quand plusieurs spectateurs saisissent la même chose, la ligne indique « validé par N personnes ».
 - Mise en page : le score est tout en haut de la fiche match ; celui qui saisit a son panneau de contrôle compact visible sans défiler (deux colonnes par équipe : But, Penalty corner, Stroke) et la frise passe en bas de page ; celui qui regarde voit la frise juste sous le score, du plus récent au plus ancien.

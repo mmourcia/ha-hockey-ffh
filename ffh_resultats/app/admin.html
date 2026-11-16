@@ -67,7 +67,7 @@ async function post(p) { try { await fetch(base + p, { method: 'POST' }); } catc
 async function load() {
   let s; try { s = await (await fetch(base + 'status', { cache: 'no-store' })).json(); } catch { $('#sub').textContent = 'Add-on injoignable'; return; }
   $('#sub').textContent = `Version ${s.version} · saison ${s.seasonLabel || '—'} · actif depuis ${dur(s.uptimeSec)}`;
-  const b = $('#badge'); b.className = 'badge ' + s.state + (s.refreshing ? ' spin' : ''); b.lastElementChild.textContent = s.refreshing ? 'Synchronisation en cours…' : LABEL[s.state];
+  const b = $('#badge'); b.className = 'badge ' + s.state + (s.refreshing ? ' spin' : ''); b.lastElementChild.textContent = s.refreshing ? 'Synchronisation en cours…' : LABEL[s.state] + (s.lastSync ? ` · ${ago(s.lastSync)} (${new Date(s.lastSync).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})` : '');
   $('#actions').innerHTML = (s.publicUrl ? `<a class="btn primary" href="${esc(s.publicUrl)}" target="_blank" rel="noopener">🌐 Ouvrir le site public</a><button class="btn" id="cp">📋 Copier le lien</button>` : '<span class="btn" style="cursor:default">🔒 Pas de lien public — renseignez la clé Tailscale</span>') +
     `<button class="btn" id="rf" ${s.refreshing ? 'disabled' : ''}>🔄 Synchroniser maintenant</button><button class="btn" id="cr" ${s.sheets.crawling ? 'disabled' : ''}>📄 Relire les feuilles de match</button>`;
   if (s.publicUrl) $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(s.publicUrl); $('#cp').textContent = '✅ Copié'; } catch { prompt('Lien', s.publicUrl); } };

@@ -145,7 +145,8 @@ views.home = async () => {
     h += `<h2>${esc(dayLong(dk))}<a href="#/matchs/${dk}">Les ${day.length} matchs</a></h2>${groupedMatches(day.slice(0, 6))}`;
   }
   h += `<h2>À la une<a href="#/actus">Toutes les actus</a></h2><div class="card" id="home-news"><div class="loading">…</div></div>`;
-  h += '<p class="muted small center" style="margin-top:18px">📊 La fréquentation est mesurée de façon anonyme (aucun nom, aucune adresse IP).</p>';
+  if (D.updated) { const mins = Math.max(0, Math.round((Date.now() - Date.parse(D.updated)) / 60000)); h += `<p class="muted small center" style="margin-top:18px">🔄 Résultats FFH synchronisés ${mins < 1 ? 'à l’instant' : mins < 60 ? 'il y a ' + mins + ' min' : 'à ' + new Date(D.updated).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>`; }
+  h += '<p class="muted small center" style="margin-top:6px">📊 La fréquentation est mesurée de façon anonyme (aucun nom, aucune adresse IP).</p>';
   app.innerHTML = h;
   wireWeek();
   if (!hasFavs()) {
