@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.0
+- Classement par joueur : tri par buts, total des cartons (tous cartons confondus), verts, jaunes, rouges ou matchs ; le total « Σ » s'affiche sur chaque joueur.
+- Onglet Buteurs d'une compétition : colonnes cliquables (buts, Σ cartons, 🟩, 🟨, 🟥).
+
 ## 1.0.0
 - Première version : résultats, classements, feuilles de match, favoris, actus, Web Push.
 

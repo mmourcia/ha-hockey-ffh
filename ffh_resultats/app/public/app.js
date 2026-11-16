@@ -193,7 +193,15 @@ views.comp = async (id, pouleId) => {
   try {
     const d = await api(`poule/${pouleId}`);
     if (cTab === 'scorers') {
-      box.innerHTML = d.scorers.length ? `<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th title="Verts">🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr class="${''}"><td class="pos">${s.rank}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '<div class="empty">Pas encore de buteurs.</div>';
+      const draw = () => {
+        const { k, dir } = scSort, tot = (s) => (s.green || 0) + (s.yellow || 0) + (s.red || 0);
+        const val = { goals: (s) => s.goals, cards: tot, green: (s) => s.green || 0, yellow: (s) => s.yellow || 0, red: (s) => s.red || 0 }[k];
+        const rows = [...d.scorers].sort((a, b) => (val(b) - val(a)) * dir || a.rank - b.rank);
+        const th = ([key, lab, tip]) => `<th data-k="${key}" title="${tip}" class="sortable${scSort.k === key ? ' on' : ''}">${lab}${scSort.k === key ? (dir === 1 ? ' ▼' : ' ▲') : ''}</th>`;
+        box.innerHTML = `<div class="card"><table class="t st"><tr><th>#</th><th class="l">Joueur</th>${[['goals', 'Buts', 'Trier par buts'], ['cards', 'Σ', 'Total des cartons'], ['green', '🟩', 'Verts'], ['yellow', '🟨', 'Jaunes'], ['red', '🟥', 'Rouges']].map(th).join('')}</tr>${rows.map((s, i) => `<tr><td class="pos">${scSort.k === 'goals' && dir === 1 ? s.rank : i + 1}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${tot(s) || ''}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>`;
+        box.querySelectorAll('th[data-k]').forEach((h) => (h.onclick = () => { scSort = { k: h.dataset.k, dir: scSort.k === h.dataset.k ? -scSort.dir : 1 }; draw(); }));
+      };
+      if (d.scorers.length) draw(); else box.innerHTML = '<div class="empty">Pas encore de buteurs.</div>';
       return;
     }
     drawStandings(box, d, id);
@@ -254,7 +262,7 @@ views.buteurs = async () => {
 
 // ---------- Arbitres ----------
 let rState = { q: '', sort: 'matches' };
-const refStats = (r) => `<span title="Matchs arbitrés"><b>${r.matches}</b> match${r.matches > 1 ? 's' : ''}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Cartons par match">${r.perMatch} / match</span>`;
+const refStats = (r) => `<span title="Matchs arbitrés"><b>${r.matches}</b> match${r.matches > 1 ? 's' : ''}</span><span title="Total des cartons">Σ ${r.green + r.yellow + r.red}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Cartons par match">${r.perMatch} / match</span>`;
 views.arbitres = async () => {
   const SORTS = [['matches', 'Matchs'], ['cards', 'Cartons'], ['perMatch', 'Cartons / match'], ['yellow', 'Jaunes'], ['red', 'Rouges']];
   app.innerHTML = `<h1>Compétitions</h1>${compTabs('arbitres')}
@@ -290,13 +298,16 @@ views.arbitre = async (id) => {
 };
 
 // ---------- Joueurs ----------
-let jState = { q: '', mine: true };
+let scSort = { k: 'goals', dir: 1 };
+let jState = { q: '', mine: true, sort: 'goals' };
+const JSORTS = [['goals', '⚽ Buts'], ['cards', 'Cartons (tous)'], ['green', '🟩'], ['yellow', '🟨'], ['red', '🟥'], ['matches', 'Matchs']];
 const statCells = (r) => `<span title="Buts">⚽ <b>${r.goals}</b></span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs joués">${r.matches} match${r.matches > 1 ? 's' : ''}</span>`;
 views.joueurs = async () => {
   const mineTeams = favs.teams;
   app.innerHTML = `<h1>Compétitions</h1>${compTabs('joueurs')}
   <input class="search" id="jq" type="search" placeholder="Nom ou prénom du joueur…" autocomplete="off" value="${esc(jState.q)}">
   ${mineTeams.length ? `<div class="chips"><button class="chip ${jState.mine ? 'on' : ''}" data-m="1">★ Mes équipes</button><button class="chip ${!jState.mine ? 'on' : ''}" data-m="0">Tous les joueurs</button></div>` : ''}
+  <div class="chips"><span class="muted small" style="align-self:center">Trier par</span>${JSORTS.map(([k, l]) => `<button class="chip ${jState.sort === k ? 'on' : ''}" data-js="${k}">${l}</button>`).join('')}</div>
   <div id="jl"><div class="loading">Chargement…</div></div><p class="muted small" id="jnote"></p>`;
   let timer, seq = 0;
   const run = async () => {
@@ -304,13 +315,14 @@ views.joueurs = async () => {
     if (!useMine && q.length < 2) { $('#jl').innerHTML = '<div class="empty">Tapez au moins 2 lettres du nom d’un joueur.</div>'; return; }
     const my = ++seq;
     try {
-      const d = await api(`players?q=${encodeURIComponent(q)}${useMine ? '&teams=' + encodeURIComponent(mineTeams.join(',')) : ''}`);
+      const d = await api(`players?q=${encodeURIComponent(q)}${useMine ? '&teams=' + encodeURIComponent(mineTeams.join(',')) : ''}&sort=${jState.sort}`);
       if (my !== seq) return;
       $('#jl').innerHTML = d.rows.length ? `<div class="card list">${d.rows.map((r) => `<a href="#/joueur/${r.id}"><div class="grow"><div><b>${esc(r.name)}</b></div><div class="muted small">${esc(r.team.name)} · ${esc(r.comp.name)}</div><div class="stats">${statCells(r)}</div></div><span class="chev">›</span></a>`).join('')}</div>${d.total > d.rows.length ? `<p class="muted small center">${d.total} résultats : affinez la recherche.</p>` : ''}` : '<div class="empty">Aucun joueur trouvé.</div>';
       $('#jnote').textContent = `Données issues de ${d.coverage.sheets} feuilles de match sur ${d.coverage.total} disponibles.${d.coverage.includeYouth ? '' : ' Catégories de jeunes exclues.'}`;
     } catch { $('#jl').innerHTML = '<div class="empty">Source indisponible.</div>'; }
   };
   $('#jq').oninput = (e) => { jState.q = e.target.value; clearTimeout(timer); timer = setTimeout(run, 250); };
+  app.querySelectorAll('[data-js]').forEach((b) => (b.onclick = () => { jState.sort = b.dataset.js; views.joueurs(); }));
   app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => { jState.mine = b.dataset.m === '1'; views.joueurs(); }));
   run();
 };

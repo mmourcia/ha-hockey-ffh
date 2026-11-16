@@ -37,7 +37,7 @@ export function aggregate(matches, sheets, compsById, { includeYouth = false } =
   return players;
 }
 
-export function search(players, { q = '', team = '', teams = null, limit = 60 }) {
+export function search(players, { q = '', team = '', teams = null, limit = 60, sort = 'goals' }) {
   const words = norm(q).split(/\s+/).filter(Boolean);
   const out = [];
   for (const pl of players.values()) {
@@ -49,6 +49,8 @@ export function search(players, { q = '', team = '', teams = null, limit = 60 })
       out.push({ id: pl.id, name: pl.name, ...r });
     }
   }
-  out.sort((a, b) => b.goals - a.goals || (b.red * 3 + b.yellow * 2 + b.green) - (a.red * 3 + a.yellow * 2 + a.green) || a.name.localeCompare(b.name));
+  const cards = (r) => r.green + r.yellow + r.red;
+  const key = { goals: (r) => r.goals, cards, green: (r) => r.green, yellow: (r) => r.yellow, red: (r) => r.red, matches: (r) => r.matches }[sort] || ((r) => r.goals);
+  out.sort((a, b) => key(b) - key(a) || b.goals - a.goals || cards(b) - cards(a) || a.name.localeCompare(b.name));
   return { total: out.length, rows: out.slice(0, limit) };
 }
