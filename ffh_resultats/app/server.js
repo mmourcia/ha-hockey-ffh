@@ -323,6 +323,7 @@ const api = async (req, res, url) => {
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (/^\/cal\/[\w.-]+\.ics$/.test(url.pathname)) { url.pathname = '/api/cal.ics'; return api(req, res, url); } // adresse « classique » en .ics (meilleure compatibilité Google Agenda)
   if (url.pathname.startsWith('/api/')) return api(req, res, url);
   let f = path.normalize(path.join(PUB, url.pathname === '/' ? 'index.html' : url.pathname));
   if (!f.startsWith(PUB) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(PUB, 'index.html'); // SPA fallback

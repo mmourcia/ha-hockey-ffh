@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.13.1
+- Agenda : adresse d'abonnement en `/cal/hockey-ffh.ics` (plus compatible avec Google Agenda), nom d'agenda personnalisable, description du calendrier ; explications sur le délai de première lecture par Google et l'ajout manuel « À partir de l'URL ».
+
 ## 1.13.0
 - Frise du direct : chaque fait porte le chrono du quart-temps (« Q2 07:32 ») au lieu de l'heure ; badge de validation sur chaque ligne (« 1 personne » ou « ✓ validé par N personnes »).
 - Chrono : « Pause » arrête le chrono et le retour sur le même quart-temps le reprend (plus de remise à zéro) ; un nouveau quart-temps repart de 00:00.

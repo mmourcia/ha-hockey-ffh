@@ -18,7 +18,7 @@ const utc = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getU
 // teams : [{ id, prefix }]  ; opts : { base, alarm (minutes, 0 = aucun), duration (minutes), name }
 export function buildIcs(matches, comps, teams, { base = '', alarm = 0, duration = 120, name = 'Hockey FFH' } = {}) {
   const pre = new Map(teams.map((t) => [t.id, t.prefix || '']));
-  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Hockey FFH Resultats//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${esc(name)}`, 'X-WR-TIMEZONE:Europe/Paris', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H'];
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Hockey FFH Resultats//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${esc(name)}`, `NAME:${esc(name)}`, 'X-WR-CALDESC:Matchs de vos équipes favorites (Hockey FFH – Résultats)', 'X-WR-TIMEZONE:Europe/Paris', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H'];
   const stamp = utc(new Date());
   const seen = new Set();
   for (const m of matches) {

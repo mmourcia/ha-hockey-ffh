@@ -411,12 +411,14 @@ views.agenda = async () => {
   const sel = () => teams.filter((id) => !cal.off.includes(id));
   if (!teams.length) { app.innerHTML = '<h1>Agenda</h1><div class="empty">Choisissez d’abord vos équipes favorites.<br><a class="btn primary" href="#/equipes">⭐ Choisir mes équipes</a></div>'; return; }
   const pre = (id) => { const p = (cal.prefix[id] || '').trim(); return p ? p + ' ' : ''; };
-  const url = () => `${location.origin}/api/cal.ics?${sel().map((id) => 't=' + encodeURIComponent(id + '|' + pre(id))).join('&')}&alarm=${cal.alarm}`;
+  const calName = () => (cal.name || '').trim() || 'Hockey FFH';
+  const url = () => `${location.origin}/cal/hockey-ffh.ics?${sel().map((id) => 't=' + encodeURIComponent(id + '|' + pre(id))).join('&')}&alarm=${cal.alarm}&name=${encodeURIComponent(calName())}`;
   app.innerHTML = `<h1>Mes matchs dans mon agenda</h1><p class="muted small" style="margin:-6px 0 10px">Abonnez-vous une fois : les matchs de vos équipes arrivent dans Google Agenda (ou Apple, Outlook…) et se mettent à jour tout seuls (horaire, lieu, score).</p>
   <h2>Quelles équipes ajouter ?</h2><div class="card list">${teams.map((id) => `<div class="row ckrow"><input type="checkbox" class="ck" data-c="${esc(id)}" ${cal.off.includes(id) ? '' : 'checked'} aria-label="Ajouter ${esc(IDX.teams[id].name)}"><div class="grow"><b>${esc(IDX.teams[id].name)}</b><div class="muted small">${esc(teamSub(IDX.teams[id]))}</div><input class="search mini" data-p="${esc(id)}" placeholder="Préfixe facultatif" value="${esc(cal.prefix[id] || '')}" ${cal.off.includes(id) ? 'disabled' : ''}></div></div>`).join('')}</div>
+  <h2>Nom de l’agenda</h2><input class="search" id="cn" maxlength="40" placeholder="Hockey FFH" value="${esc(cal.name || '')}">
   <h2>Rappel</h2><select class="search" id="al">${[[0, 'Aucun rappel'], [30, '30 minutes avant'], [60, '1 heure avant'], [120, '2 heures avant'], [1440, 'La veille']].map(([v, l]) => `<option value="${v}" ${+cal.alarm === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
   <h2>S’abonner</h2><div class="card pad"><p style="margin:0 0 8px"><a class="btn primary" id="gc" target="_blank" rel="noopener">Ajouter à Google Agenda</a> <a class="btn" id="wc">Apple / Outlook</a> <button class="btn" id="cp">Copier le lien</button></p>
-  <div class="small" id="nosel" style="color:var(--warn);margin-bottom:6px" hidden>Cochez au moins une équipe.</div><div class="muted small">Exemple de titre : <b id="ex"></b></div><div class="muted small" style="margin-top:6px">Google Agenda actualise les agendas abonnés environ toutes les 12 à 24 h. Ce lien ne contient que la liste de vos équipes, aucune donnée personnelle.</div></div>`;
+  <div class="small" id="nosel" style="color:var(--warn);margin-bottom:6px" hidden>Cochez au moins une équipe.</div><div class="muted small">Exemple de titre : <b id="ex"></b></div><div class="muted small" style="margin-top:6px"><b>Google met un peu de temps à lire l’agenda</b> : de quelques minutes à plusieurs heures la première fois. Tant que ce n’est pas fait, il affiche l’adresse comme nom et l’agenda reste vide. Vérifiez aussi que l’agenda est coché dans « Autres agendas » (colonne de gauche). Ensuite il est actualisé toutes les 12 à 24 h. Si vous aviez déjà ajouté une ancienne version, retirez-la d’abord (Paramètres → agenda → Se désabonner).<br>Autre méthode : dans Google Agenda, « Autres agendas » → + → « À partir de l’URL », puis collez le lien copié. Ce lien ne contient que la liste de vos équipes, aucune donnée personnelle.</div></div>`;
   const upd = () => {
     const s = sel(), none = !s.length;
     ['#gc', '#wc', '#cp'].forEach((q) => $(q).classList.toggle('off', none));
@@ -428,6 +430,7 @@ views.agenda = async () => {
   };
   app.querySelectorAll('[data-c]').forEach((c) => (c.onchange = () => { cal.off = c.checked ? cal.off.filter((x) => x !== c.dataset.c) : [...cal.off, c.dataset.c]; store.set('cal', cal); app.querySelector(`[data-p="${CSS.escape(c.dataset.c)}"]`).disabled = !c.checked; upd(); }));
   app.querySelectorAll('[data-p]').forEach((i) => (i.oninput = () => { cal.prefix[i.dataset.p] = i.value; store.set('cal', cal); upd(); }));
+  $('#cn').oninput = (e) => { cal.name = e.target.value; store.set('cal', cal); upd(); };
   $('#al').onchange = (e) => { cal.alarm = +e.target.value; store.set('cal', cal); upd(); };
   upd();
 };
