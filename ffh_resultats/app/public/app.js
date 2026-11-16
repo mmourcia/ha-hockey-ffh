@@ -260,7 +260,7 @@ views.comp = async (id, pouleId) => {
         const val = { goals: (s) => s.goals, cards: tot, green: (s) => s.green || 0, yellow: (s) => s.yellow || 0, red: (s) => s.red || 0 }[k];
         const rows = [...d.scorers].sort((a, b) => (val(b) - val(a)) * dir || a.rank - b.rank);
         const th = ([key, lab, tip]) => `<th data-k="${key}" title="${tip}" class="sortable${scSort.k === key ? ' on' : ''}">${lab}${scSort.k === key ? (dir === 1 ? ' ▼' : ' ▲') : ''}</th>`;
-        box.innerHTML = `<div class="card"><table class="t st"><tr><th>#</th><th class="l">Joueur</th>${[['goals', 'Buts', 'Trier par buts'], ['cards', 'Tot.', 'Total des cartons (trier)'], ['green', '🟩', 'Verts'], ['yellow', '🟨', 'Jaunes'], ['red', '🟥', 'Rouges']].map(th).join('')}</tr>${rows.map((s, i) => `<tr><td class="pos">${scSort.k === 'goals' && dir === 1 ? s.rank : i + 1}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${tot(s) || ''}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>`;
+        box.innerHTML = `<div class="card"><table class="t st"><tr><th>#</th><th class="l">Joueur</th>${[['goals', 'Buts', 'Trier par buts'], ['cards', 'Tot.', 'Total des cartons (trier)'], ['green', '🟩', 'Verts'], ['yellow', '🟨', 'Jaunes'], ['red', '🟥', 'Rouges']].map(th).join('')}</tr>${rows.map((s, i) => `<tr><td class="pos">${scSort.k === 'goals' && dir === 1 ? s.rank : i + 1}</td><td class="team">${s.id ? `<a href="#/joueur/${s.id}">${esc(s.name)}</a>` : esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${tot(s) || ''}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>`;
         box.querySelectorAll('th[data-k]').forEach((h) => (h.onclick = () => { scSort = { k: h.dataset.k, dir: scSort.k === h.dataset.k ? -scSort.dir : 1 }; draw(); }));
       };
       if (d.scorers.length) draw(); else box.innerHTML = '<div class="empty">Pas encore de buteurs.</div>';
@@ -315,7 +315,7 @@ views.buteurs = async () => {
   const load = async () => {
     const c = IDX.comp[sSel];
     const lists = await Promise.all(c.poules.map((p) => api('poule/' + p.id).then((d) => ({ p, d })).catch(() => null)));
-    $('#sl').innerHTML = lists.filter(Boolean).map(({ p, d }) => d.scorers.length ? `${c.poules.length > 1 ? `<h2>${esc(p.label)}</h2>` : ''}<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th>🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr><td class="pos">${s.rank}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '').join('') || '<div class="empty">Pas encore de buteurs pour cette compétition.</div>';
+    $('#sl').innerHTML = lists.filter(Boolean).map(({ p, d }) => d.scorers.length ? `${c.poules.length > 1 ? `<h2>${esc(p.label)}</h2>` : ''}<div class="card"><table class="t"><tr><th>#</th><th class="l">Joueur</th><th>Buts</th><th>🟩</th><th>🟨</th><th>🟥</th></tr>${d.scorers.map((s) => `<tr><td class="pos">${s.rank}</td><td class="team">${s.id ? `<a href="#/joueur/${s.id}">${esc(s.name)}</a>` : esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>` : '').join('') || '<div class="empty">Pas encore de buteurs pour cette compétition.</div>';
   };
   const pick = (id) => { sSel = id; sTouched = true; views.buteurs(); };
   $('#sc').onchange = (e) => pick(e.target.value);
@@ -715,7 +715,16 @@ views.actus = async () => {
 };
 
 views.search = async () => {
-  app.innerHTML = '<input class="search" id="sq" type="search" placeholder="Club, équipe, compétition, ville…" autofocus autocomplete="off"><div id="sr"></div>';
+  app.innerHTML = '<input class="search" id="sq" type="search" placeholder="Club, équipe, joueur, compétition, ville…" autofocus autocomplete="off"><div id="sr"></div><div id="spl"></div>';
+  let pt, pseq = 0;
+  const players = async () => {
+    const q = $('#sq').value.trim(), my = ++pseq; const el = $('#spl'); if (!el) return;
+    if (q.length < 3) { el.innerHTML = ''; return; }
+    try {
+      const d = await api(`players?q=${encodeURIComponent(q)}&limit=12`); if (my !== pseq) return;
+      el.innerHTML = d.rows.length ? `<h2>Joueurs</h2><div class="card list">${d.rows.map((r) => `<a href="#/joueur/${r.id}"><div class="grow"><div><b>${esc(r.name)}</b></div><div class="muted small">${esc(r.team.name)} · ${esc(r.comp.name)}</div></div><span class="chev">›</span></a>`).join('')}</div>` : '';
+    } catch { if (my === pseq) el.innerHTML = ''; }
+  };
   const go = () => {
     const q = norm($('#sq').value.trim()); if (q.length < 2) { $('#sr').innerHTML = '<div class="empty">Tapez au moins 2 lettres.</div>'; return; }
     const clubs = D.clubs.filter((c) => norm(c.name + ' ' + (c.city || '')).includes(q)).slice(0, 8);
@@ -728,7 +737,7 @@ views.search = async () => {
       sec('Compétitions', comps.map((c) => `<a href="#/comp/${c.id}"><div class="grow"><div>${esc(c.name)}</div><div class="muted small">${discLabel(c.disc)} · ${sexeLabel(c.sexe)}</div></div><span class="chev">›</span></a>`)) || '<div class="empty">Aucun résultat.</div>';
     if (!clubs.length && !teams.length && !comps.length) $('#sr').innerHTML = '<div class="empty">Aucun résultat.</div>';
   };
-  $('#sq').oninput = go; $('#sq').focus(); go();
+  $('#sq').oninput = () => { go(); clearTimeout(pt); pt = setTimeout(players, 300); }; $('#sq').focus(); go();
 };
 const notFound = () => (app.innerHTML = '<div class="empty">Page introuvable. <a class="btn" href="#/">Accueil</a></div>');
 

@@ -26,8 +26,20 @@ export function nextDelay(matches, now = Date.now(), base = 5 * MIN) {
   if (live) return { delay: base, mode: 'live' };
   const until = nextStart - now; // avant le début de la prochaine fenêtre
   const cap = (d, mode) => ({ delay: Math.max(MIN, Math.min(d, until)), mode });
-  if (!isFinite(until)) return { delay: 60 * MIN, mode: 'idle' };
-  if (until <= 3 * H) return cap(Math.max(base * 3, 10 * MIN), 'soon');
-  if (until <= 24 * H) return cap(30 * MIN, 'today');
-  return cap(60 * MIN, 'idle');
+  if (!isFinite(until)) return { delay: 6 * H, mode: 'idle' };
+  if (until <= 3 * H) return cap(30 * MIN, 'soon'); // dernière ligne droite : reports / changements de terrain
+  if (until <= 24 * H) return cap(2 * H, 'today');
+  return cap(6 * H, 'idle'); // rien à surveiller : on ne dérange pas la FFH (réveil exact avant le prochain match)
+}
+
+// compétitions ayant un match dans sa fenêtre de suivi (pour ne relire que celles-là pendant les matchs)
+export function liveComps(matches, now = Date.now()) {
+  const out = new Set();
+  for (const m of matches) {
+    if (m.status === 'cancelled') continue;
+    const s = startOf(m); if (s == null) continue;
+    const untimed = m.date.slice(11, 16) === '00:00';
+    if (now >= s - (untimed ? 4 * H : WINDOW.before) && now <= s + (untimed ? 12 * H : WINDOW.after)) out.add(m.comp);
+  }
+  return out;
 }

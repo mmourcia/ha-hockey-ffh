@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.18.0
+- Joueurs cliquables dans les tableaux de buteurs (compétition et page Buteurs) ; la recherche globale propose aussi des joueurs.
+- Ménager l'API de la FFH : pendant un match, seules les compétitions concernées sont relues (1 appel chacune) au lieu des ~230 appels d'une relecture complète, qui n'a plus lieu que toutes les 3 h au plus tard pendant un match ; hors match les relectures s'espacent : 30 min dans les 3 h avant un match, 2 h dans les 24 h avant, 6 h sinon (réveil exact avant le prochain match). Une visite sur un site dont les données sont anciennes déclenche une relecture en arrière-plan (au plus toutes les 10 min).
+
 ## 1.17.2
 - Panneau HA : sous le titre, « Prochaine synchro prévue dans N min/h/j (heure ou jour + heure) » avec le mode (match en cours / proche / aucun match proche).
 - Feuille de match : les buteurs sont cliquables (fiche joueur).

@@ -2,7 +2,7 @@
 // Zéro dépendance. Usage : node server.js  (PORT=8080)
 import { buildIcs, parseTeams, parisToDate } from './ics.js';
 import { createLive } from './live.js';
-import { nextDelay } from './schedule.js';
+import { nextDelay, liveComps } from './schedule.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -83,8 +83,21 @@ async function cached(key, ttl, fn) {
 const store = {}; // season -> {version, updated, season, comps, matches, clubs}
 let currentSeason = null;
 
-async function buildIndex(season) {
+async function buildIndex(season, prev = null, only = null) {
   const t0 = Date.now();
+  if (only && prev) { // relecture ciblée : seules les compétitions ayant un match en cours (1 appel par compétition)
+    const res = await pool(prev.comps.filter((c) => only.has(c.id)), 4, async (comp) => {
+      const rr = await up('Championnats/ListerRencontres', { SaisonAnnee: season, ManifId: comp.id });
+      return { id: comp.id, matches: Object.values(rr?.RencontresArray || {}).map((r) => normMatch(r, comp)).filter((m) => m.t1 && m.t2) };
+    });
+    const fresh = new Map(res.filter(Boolean).map((x) => [x.id, x.matches]));
+    const matches = prev.matches.filter((m) => !fresh.has(m.comp)).concat([...fresh.values()].flat());
+    const idx = { season, updated: new Date().toISOString(), comps: prev.comps, matches, clubs: prev.clubs };
+    idx.version = String(matches.reduce((h, m) => (h * 31 + (m.s1 ?? -1) * 7 + (m.s2 ?? -1) * 3 + (m.status.length) + (m.date ? m.date.charCodeAt(9) : 0)) % 1e9, matches.length));
+    fs.writeFileSync(path.join(DATA, `index-${season}.json`), JSON.stringify(idx));
+    console.log(`index ${season} (ciblé ${fresh.size} compétitions): ${matches.length} matchs (${((Date.now() - t0) / 1e3).toFixed(0)}s)`);
+    return idx;
+  }
   const [champsR, clubsR] = await Promise.all([up('Championnats/ListerChamps', { SaisonAnnee: season }), up('Structures/ListerClubs', { SaisonAnnee: season })]);
   const champs = Object.values(champsR?.ChampsArray || {});
   const clubs = Object.values(clubsR?.StructuresArray || {}).map((s) => ({
@@ -105,11 +118,12 @@ async function buildIndex(season) {
   console.log(`index ${season}: ${comps.length} compétitions, ${matches.length} matchs, ${clubs.length} clubs (${((Date.now() - t0) / 1e3).toFixed(0)}s)`);
   return idx;
 }
-async function refresh(season) {
-  if (health.refreshing) return; health.refreshing = true;
+async function refresh(season, only = null) {
+  if (health.refreshing) return; health.refreshing = true; health.attempt = Date.now();
   const t0 = Date.now();
   try {
-    const prev = store[season]; const next = await buildIndex(season);
+    const prev = store[season]; const next = await buildIndex(season, prev, only);
+    if (!only) health.lastFull = Date.now();
     store[season] = next; next.gz = zlib.gzipSync(JSON.stringify(next));
     crawlSheets(season);
     let changedN = 0;
@@ -121,7 +135,7 @@ async function refresh(season) {
       if (changed.length) console.log(`push: ${changed.length} score(s), ${await push.notify(changed)} notification(s)`);
     }
     health.lastOk = new Date().toISOString();
-    note(health.refreshes, { at: health.lastOk, ok: true, ms: Date.now() - t0, matches: next.matches.length, changed: changedN });
+    note(health.refreshes, { at: health.lastOk, ok: true, ms: Date.now() - t0, matches: next.matches.length, changed: changedN, partial: only ? only.size : 0 });
   } catch (e) {
     console.error('refresh failed', e.message);
     note(health.refreshes, { at: new Date().toISOString(), ok: false, ms: Date.now() - t0, error: e.message });
@@ -199,6 +213,9 @@ const api = async (req, res, url) => {
   const noCache = { 'cache-control': 'no-cache' };
   try {
     if (p[0] === 'data') {
+      // si quelqu'un consulte le site et que les données sont anciennes, on relit en arrière-plan (au plus une fois par 10 min)
+      const mode = health.next?.mode, stale = mode === 'soon' || mode === 'today' ? 30 * 60e3 : 3 * 3600e3;
+      if (!health.refreshing && health.lastFull && Date.now() - health.lastFull > stale && Date.now() - (health.attempt || 0) > 10 * 60e3) refresh(season);
       const idx = await ensure(season);
       if (url.searchParams.get('v') === idx.version) return send(req, res, 200, { unchanged: true, version: idx.version }, noCache);
       return send(req, res, 200, idx.gz, { 'content-type': 'application/json; charset=utf-8', 'content-encoding': 'gzip', ...noCache });
@@ -215,10 +232,10 @@ const api = async (req, res, url) => {
         const tok = (n) => norm(n).split(/\s+/).filter(Boolean).sort().join(' ');
         const byName = new Map();
         for (const pl of players(season).values()) for (const r of pl.rows.values()) if (r.comp.id === compId) {
-          const k = tok(pl.name), a = byName.get(k) || { green: 0, yellow: 0, red: 0 };
-          a.green += r.green; a.yellow += r.yellow; a.red += r.red; byName.set(k, a);
+          const k = tok(pl.name), a = byName.get(k) || { green: 0, yellow: 0, red: 0, ids: new Set() };
+          a.green += r.green; a.yellow += r.yellow; a.red += r.red; a.ids.add(pl.id); byName.set(k, a);
         }
-        for (const s of scorers) { const a = byName.get(tok(s.name)) || { green: 0, yellow: 0, red: 0 }; Object.assign(s, a); }
+        for (const s of scorers) { const a = byName.get(tok(s.name)) || { green: 0, yellow: 0, red: 0, ids: new Set() }; const { ids, ...cards } = a; Object.assign(s, cards, { id: ids.size === 1 ? [...ids][0] : null }); } // lien vers la fiche si le joueur est identifiable sans ambiguïté
       } catch { for (const s of scorers) s.green = s.yellow = s.red = 0; }
       return send(req, res, 200, { standings: normStandings(st), scorers }, { 'cache-control': 'public, max-age=60' });
     }
@@ -361,7 +378,13 @@ function scheduleRefresh() {
   const idx = store[currentSeason];
   const d = nextDelay(idx?.matches || [], Date.now(), REFRESH_MS);
   health.next = { at: Date.now() + d.delay, delay: d.delay, mode: d.mode };
-  setTimeout(async () => { await refresh(currentSeason); scheduleRefresh(); }, d.delay).unref?.();
+  setTimeout(async () => {
+    // pendant un match : on ne relit que les compétitions concernées ; relecture complète toutes les 3 h au plus tard
+    const cur = store[currentSeason], live = cur ? liveComps(cur.matches) : new Set();
+    const full = !live.size || !health.lastFull || Date.now() - health.lastFull > 3 * 3600e3;
+    await refresh(currentSeason, full ? null : live);
+    scheduleRefresh();
+  }, d.delay).unref?.();
 }
 
 // ---------- Panneau d'administration (Ingress Home Assistant, port interne uniquement) ----------
