@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.11.0
+- Le nom du championnat est mis en avant sur les cartes de match (gras, couleur d'accent, texte complet).
+- Saisie en direct : buteur facultatif (nom ou n°), penalty corner et stroke par équipe avec leur issue (arrêté, but, non cadré) — une issue « but » ajoute le but au score (« sur penalty corner / stroke ») —, commentaires libres, frise chronologique des faits de jeu avec heure et confirmations.
+- Modération : onglet « Saisies en direct » dans le panneau HA pour supprimer un commentaire ; liens refusés automatiquement.
+
 ## 1.10.1
 - Agenda : cases à cocher pour choisir quelles équipes favorites ajouter ; préfixe facultatif avec un libellé neutre.
 - Classements : colonne « Forme » (5 derniers résultats V/N/D, le plus récent à droite).

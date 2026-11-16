@@ -44,13 +44,14 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 4px;t
     <div class="grow"><h1>Hockey FFH – Résultats</h1><div class="sub" id="sub">Chargement…</div></div>
     <span class="badge init" id="badge"><i></i><span>…</span></span>
   </header>
-  <div class="tabs"><button class="tab on" data-tab="state">🛠 État</button><button class="tab" data-tab="usage">📈 Fréquentation</button></div>
+  <div class="tabs"><button class="tab on" data-tab="state">🛠 État</button><button class="tab" data-tab="usage">📈 Fréquentation</button><button class="tab" data-tab="live">💬 Saisies en direct</button></div>
   <div id="pState">
   <div class="actions" id="actions"></div>
   <div class="grid" id="tiles"></div>
   <div class="cols" id="cols"></div>
   </div>
   <div id="pUsage" hidden></div>
+  <div id="pLive" hidden></div>
 </div>
 <script>
 const base = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
@@ -107,9 +108,15 @@ async function load() {
 }
 load(); setInterval(load, 10000);
 let tab = 'state';
-document.querySelectorAll('.tab').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('on', x === b)); $('#pState').hidden = tab !== 'state'; $('#pUsage').hidden = tab !== 'usage'; if (tab === 'usage') loadUsage(); }));
+document.querySelectorAll('.tab').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('on', x === b)); $('#pState').hidden = tab !== 'state'; $('#pUsage').hidden = tab !== 'usage'; $('#pLive').hidden = tab !== 'live'; if (tab === 'usage') loadUsage(); if (tab === 'live') loadLive(); }));
 const mmss = (s) => s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0') + ' s';
 const SECT = { home: 'Accueil', matchs: 'Matchs', comps: 'Classements', comp: 'Compétition', buteurs: 'Buteurs', joueurs: 'Joueurs', joueur: 'Fiche joueur', arbitres: 'Arbitres', arbitre: 'Fiche arbitre', equipes: 'Équipes', equipe: 'Fiche équipe', club: 'Club', match: 'Feuille de match', actus: 'Actus', search: 'Recherche' };
+async function loadLive() {
+  let n; try { n = await (await fetch(base + 'livenotes', { cache: 'no-store' })).json(); } catch { $('#pLive').innerHTML = '<div class="empty">Indisponible.</div>'; return; }
+  $('#pLive').innerHTML = `<div class="card full"><h2>Commentaires saisis par les spectateurs</h2><p class="muted small">Visibles publiquement sur la fiche du match. Supprimez tout contenu inapproprié. Les liens sont déjà refusés automatiquement.</p>${n.length ? `<table><tr><th>Quand</th><th>Match</th><th>Saisisseur</th><th>Commentaire</th><th></th></tr>${n.map((x) => `<tr><td style="width:130px">${dt(new Date(x.t).toISOString())}</td><td>${esc(x.match)}</td><td class="muted">${esc(x.who)}…</td><td>${esc(x.txt)}</td><td><button class="tab" data-del="${esc(x.match)}|${esc(x.id)}">Supprimer</button></td></tr>`).join('')}</table>` : '<div class="empty">Aucun commentaire.</div>'}</div>`;
+  $('#pLive').querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => { const [m, id] = b.dataset.del.split('|'); await fetch(base + 'livenotes/delete', { method: 'POST', body: JSON.stringify({ match: m, id }) }); loadLive(); }));
+}
+setInterval(() => { if (tab === 'live') loadLive(); }, 15000);
 async function loadUsage() {
   let u; try { u = await (await fetch(base + 'usage', { cache: 'no-store' })).json(); } catch { $('#pUsage').innerHTML = '<div class="empty">Statistiques indisponibles.</div>'; return; }
   const max = Math.max(1, ...u.series.map((d) => d.views));

@@ -362,6 +362,8 @@ if (ADMIN_PORT) http.createServer(async (req, res) => {
   try {
     if (u.pathname.endsWith('/status')) return json(200, await status());
     if (u.pathname.endsWith('/usage')) return json(200, usageSummary());
+    if (u.pathname.endsWith('/livenotes')) return json(200, live.notes());
+    if (req.method === 'POST' && u.pathname.endsWith('/livenotes/delete')) { const b = await new Promise((ok) => { let x = ''; req.on('data', (d) => (x += d)).on('end', () => ok(x)); }); let j = {}; try { j = JSON.parse(b); } catch {} return json(200, { ok: live.removeNote(String(j.match), String(j.id)) }); }
     if (req.method === 'POST' && u.pathname.endsWith('/refresh')) { refresh(currentSeason); return json(202, { ok: true }); }
     if (req.method === 'POST' && u.pathname.endsWith('/crawl')) { crawlSheets(currentSeason); return json(202, { ok: true }); }
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(fs.readFileSync(path.join(ROOT, 'admin.html')));

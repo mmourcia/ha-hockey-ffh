@@ -52,3 +52,33 @@ test('résumé et expiration', () => {
   assert.deepEqual(l.summary().m1.s, [1, 0]);
   tick(9 * 3600e3); assert.equal(l.summary().m1, undefined);
 });
+
+test('buteur : le plus cité parmi les saisisseurs', () => {
+  const { l } = mk();
+  l.report('m1', A, { action: 'goal', side: 0, q: 1, who: 'Dupont' }); l.report('m1', B, { action: 'goal', side: 0, q: 1, who: 'dupont' }); l.report('m1', C, { action: 'goal', side: 0, q: 1, who: '' });
+  assert.equal(l.view('m1').goals[0].who, 'Dupont');
+});
+test('penalty corner : issue « arrêté » puis « but » crée le but', () => {
+  const { l, tick } = mk();
+  l.report('m1', A, { action: 'sp', k: 'pc', side: 1, q: 2 });
+  let v = l.view('m1', A); assert.equal(v.mine.open.length, 1);
+  assert.equal(v.events[0].k, 'pc'); assert.equal(v.events[0].res, null);
+  l.report('m1', A, { action: 'resolve', id: v.mine.open[0].id, res: 'saved', txt: 'Belle parade' });
+  v = l.view('m1', A); assert.equal(v.events[0].res, 'saved'); assert.equal(v.events[0].txt, 'Belle parade'); assert.deepEqual(v.score, [0, 0]);
+  tick(10); l.report('m1', A, { action: 'sp', k: 'stroke', side: 0, q: 3 }); tick(10);
+  v = l.view('m1', A); l.report('m1', A, { action: 'resolve', id: v.mine.open[0].id, res: 'but', who: 'Martin' });
+  v = l.view('m1', A);
+  assert.deepEqual(v.score, [1, 0]); assert.equal(v.goals[0].via, 'stroke'); assert.equal(v.goals[0].who, 'Martin');
+  assert.equal(v.events.filter((e) => e.k === 'stroke').length, 0); // le stroke transformé en but n'apparaît qu'une fois
+  l.report('m1', A, { action: 'undo' }); // annule le but ET le stroke lié
+  v = l.view('m1', A); assert.deepEqual(v.score, [0, 0]); assert.equal(v.events.filter((e) => e.k === 'stroke').length, 0);
+});
+test('commentaires : nettoyage, liens refusés, modération', () => {
+  const { l } = mk();
+  assert.ok(l.report('m1', A, { action: 'note', txt: 'voir http://spam.example' }).error);
+  assert.ok(l.report('m1', A, { action: 'note', txt: '   ' }).error);
+  l.report('m1', A, { action: 'period', p: 'Q2' });
+  l.report('m1', A, { action: 'note', txt: '  Belle <b>action</b>  de Léo ' });
+  let v = l.view('m1'); const n = v.events.find((e) => e.k === 'note'); assert.equal(n.q, 2); assert.equal(n.txt, 'Belle b action /b de Léo');
+  const [x] = l.notes(); assert.ok(l.removeNote('m1', x.id)); assert.equal(l.view('m1').events.filter((e) => e.k === 'note').length, 0);
+});

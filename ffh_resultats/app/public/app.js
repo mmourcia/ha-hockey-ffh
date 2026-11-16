@@ -83,7 +83,7 @@ function matchCard(m, { showComp = false } = {}) {
   const comp = IDX.comp[m.comp];
   const name = (t, i) => `<div class="${w === i ? 'win' : ''}"><span class="n">${esc(t.name)}</span>${isFavTeam(t) ? ' <span style="color:#f5b301">★</span>' : ''}</div>`;
   const score = m.bye ? '' : lv ? `<div class="lv">${lv.s[0]}</div><div class="lv">${lv.s[1]}</div>` : played ? `<div class="${w === 2 ? 'lose' : ''}">${m.s1}</div><div class="${w === 1 ? 'lose' : ''}">${m.s2}</div>` : '';
-  return `<a class="match ${isFavMatch(m) ? 'fav-m' : ''}" href="#/match/${m.id}"><div class="m-when">${when}</div><div class="m-teams">${name(m.t1, 1)}${name(m.t2, 2)}${lv ? '<div class="muted small">⚠ score non officiel</div>' : ''}${showComp && comp ? `<div class="muted small"><span class="n">${esc(comp.name)}${m.round ? ' · ' + esc(m.round) : ''}</span></div>` : ''}</div><div class="m-score">${score}</div></a>`;
+  return `<a class="match ${isFavMatch(m) ? 'fav-m' : ''}" href="#/match/${m.id}"><div class="m-when">${when}</div><div class="m-teams">${name(m.t1, 1)}${name(m.t2, 2)}${lv ? '<div class="muted small">⚠ score non officiel</div>' : ''}${showComp && comp ? `<div class="cmp">${esc(comp.name)}${m.round ? `<span> · ${esc(m.round)}</span>` : ''}</div>` : ''}</div><div class="m-score">${score}</div></a>`;
 }
 function groupedMatches(ms) {
   const g = {};
@@ -467,40 +467,65 @@ async function liveApi(id, body) {
   const r = await fetch('/api/live/' + id, body ? { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ vid: VID, ...body }) } : { headers: { 'x-vid': VID }, cache: 'no-store' });
   const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status); return j;
 }
+const hmin = (t) => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
+let draft = { who: '', txt: '' };
 function liveHtml(m, v, scoring) {
   const T = (i) => esc(m['t' + (i + 1)].name), open = inWindow(m);
   if (!v.reporters && !open) return '';
-  const byQ = [1, 2, 3, 4].map((q) => ({ q, gs: v.goals.filter((g) => g.q === q) })).filter((x) => x.gs.length);
+  const RES = { saved: 'arrêté', miss: 'non cadré' };
+  const evRow = (e) => {
+    const q = `<span class="q">${e.q ? 'Q' + e.q : '·'}</span>`, when = `<span class="muted small">${hmin(e.t)}</span>`;
+    const badge = e.k === 'note' ? '' : `<span class="cf ${e.confirmed ? 'ok' : 'wait'}">${e.confirmed ? '✓ ' + e.support : 'à confirmer'}</span>`;
+    const body = e.k === 'note' ? `💬 ${esc(e.txt)}`
+      : e.k === 'goal' ? `⚽ <b>But</b> ${T(e.side)}${e.who ? ' – ' + esc(e.who) : ''}${e.via ? ` <span class="muted">(sur ${e.via === 'pc' ? 'penalty corner' : 'stroke'})</span>` : ''}`
+      : `${e.k === 'pc' ? '🏑 <b>Penalty corner</b>' : '🎯 <b>Stroke</b>'} ${T(e.side)} <span class="muted">· ${e.res ? RES[e.res] : 'en cours'}</span>${e.txt ? ' – ' + esc(e.txt) : ''}`;
+    return `<div class="ev">${q}<div class="ev-b"><div>${body}</div>${when}</div>${badge}</div>`;
+  };
   const head = v.reporters ? `<div class="lv-top"><span class="per ${v.period === 'END' ? 'end' : ''}">${v.period ? (v.period === 'END' ? 'Match terminé' : v.period === 'PAUSE' ? 'Pause' : 'Quart-temps ' + v.period.slice(1)) : 'En cours'}</span><span class="muted small">${v.reporters} spectateur${v.reporters > 1 ? 's' : ''} · ${v.votes} d’accord sur la période</span></div>
     <div class="lv-score"><span>${T(0)}</span><b>${v.score[0]} – ${v.score[1]}</b><span>${T(1)}</span></div>${v.pending[0] + v.pending[1] ? `<div class="small center" style="color:var(--warn)">+${v.pending[0] + v.pending[1]} but${v.pending[0] + v.pending[1] > 1 ? 's' : ''} à confirmer (vu par un seul spectateur)</div>` : ''}
-    ${byQ.map(({ q, gs }) => `<div class="lv-q"><span class="q">Q${q}</span><div>${gs.map((g) => `<div class="gl"><span>⚽ ${T(g.side)}</span><span class="cf ${g.confirmed ? 'ok' : 'wait'}">${g.confirmed ? '✓ ' + g.support : 'à confirmer'}</span></div>`).join('')}</div></div>`).join('')}
+    <div class="evs">${v.events.map(evRow).join('')}</div>
     ${v.period === 'END' ? '<div class="small muted center">Dernier score saisi : la feuille officielle FFH fera foi.</div>' : ''}` : '<p class="muted" style="margin:0 0 8px">Personne ne suit ce match pour l’instant : soyez le premier à saisir le score !</p>';
-  const mine = v.mine || { p: null, goals: [] };
+  const mine = v.mine || { p: null, goals: [], open: [], notes: 0 };
+  const nb = mine.goals.length + (v.mine ? 0 : 0);
   const panel = scoring ? `<div class="scorer"><div class="lv-top"><b>Vous saisissez ce match</b><button class="link" data-stop>Arrêter</button></div>
     <div class="small muted">Où en est le match ?</div><div class="chips">${['Q1', 'Q2', 'Q3', 'Q4', 'PAUSE', 'END'].map((p) => `<button class="chip ${mine.p === p ? 'on' : ''}" data-pp="${p}">${p === 'PAUSE' ? 'Pause' : p === 'END' ? 'Fin du match' : p}</button>`).join('')}</div>
+    <input class="search mini" id="who" maxlength="40" placeholder="Buteur (facultatif) : nom ou n° de maillot" value="${esc(draft.who)}">
     <div class="gbtns"><button class="gb" data-g="0">⚽ But<span>${T(0)}</span></button><button class="gb" data-g="1">⚽ But<span>${T(1)}</span></button></div>
+    <div class="small muted">Faits de jeu</div>
+    <div class="gbtns sp"><button class="gb alt" data-sp="pc:0">🏑 Penalty corner<span>${T(0)}</span></button><button class="gb alt" data-sp="pc:1">🏑 Penalty corner<span>${T(1)}</span></button><button class="gb alt" data-sp="stroke:0">🎯 Stroke<span>${T(0)}</span></button><button class="gb alt" data-sp="stroke:1">🎯 Stroke<span>${T(1)}</span></button></div>
     <div id="qask" hidden><div class="small muted">Dans quel quart-temps ?</div><div class="chips">${[1, 2, 3, 4].map((q) => `<button class="chip" data-gq="${q}">Q${q}</button>`).join('')}</div></div>
-    <button class="btn" data-undo ${mine.goals.length ? '' : 'disabled'}>↩ Annuler mon dernier but${mine.goals.length ? ` (${mine.goals.length} saisis)` : ''}</button></div>`
+    ${mine.open.map((o) => `<div class="open"><b>${o.k === 'pc' ? '🏑 Penalty corner' : '🎯 Stroke'} ${T(o.side)}</b> <span class="muted small">(Q${o.q})</span> — quelle issue ?<div class="chips"><button class="chip" data-res="${o.id}:saved">🧤 Arrêté</button><button class="chip" data-res="${o.id}:but">⚽ But</button><button class="chip" data-res="${o.id}:miss">❌ Non cadré</button></div></div>`).join('')}
+    <div class="cmt"><input class="search mini" id="txt" maxlength="140" placeholder="Commentaire (belle action, arrêt de jeu…)" value="${esc(draft.txt)}"><button class="btn" data-note>Publier</button></div>
+    <div class="muted small">Le commentaire est joint à l’issue d’un penalty corner / stroke si vous en choisissez une, sinon « Publier » l’affiche seul.</div>
+    <button class="btn" data-undo ${mine.goals.length || mine.open.length || mine.notes ? '' : 'disabled'}>↩ Annuler ma dernière saisie</button></div>`
     : open ? '<button class="btn primary" data-start>📣 Je saisis ce match</button>' : '';
   return `<h2>En direct <span class="tag warn" style="margin-left:6px">non officiel</span></h2><div class="card pad lv-card">${head}${panel}<p class="muted small" style="margin:10px 0 0">Score saisi par des spectateurs présents au bord du terrain, sans vérification de la FFH. Un but est confirmé quand plusieurs spectateurs indépendants l’ont saisi. Le résultat officiel fait foi.</p></div>`;
 }
 let liveTimer = null;
 async function startLive(m) {
   const box = $('#live'); if (!box) return;
-  const key = 'scoring.' + m.id; let v = { reporters: 0, goals: [], score: [0, 0], pending: [0, 0], mine: null };
+  const key = 'scoring.' + m.id; let v = { reporters: 0, goals: [], events: [], score: [0, 0], pending: [0, 0], mine: null };
+  let pend = null;
   const draw = () => {
     if (!$('#live')) return;
     box.innerHTML = liveHtml(m, v, store.get(key, false) && inWindow(m));
-    const act = async (body, ok) => { try { v = await liveApi(m.id, body); draw(); ok?.(); } catch (e) { toast(e.message); } };
+    box.querySelector('#who')?.addEventListener('input', (e) => (draft.who = e.target.value));
+    box.querySelector('#txt')?.addEventListener('input', (e) => (draft.txt = e.target.value));
+    const act = async (body) => { try { v = await liveApi(m.id, body); if (['goal', 'resolve', 'note'].includes(body.action)) { if (body.action !== 'note') draft.who = ''; draft.txt = ''; } draw(); toast('Enregistré'); } catch (e) { toast(e.message); } };
     box.querySelector('[data-start]')?.addEventListener('click', () => { store.set(key, true); draw(); });
     box.querySelector('[data-stop]')?.addEventListener('click', () => { store.set(key, false); draw(); });
     box.querySelectorAll('[data-pp]').forEach((b) => (b.onclick = () => act({ action: 'period', p: b.dataset.pp })));
     box.querySelector('[data-undo]')?.addEventListener('click', () => act({ action: 'undo' }));
-    const cur = v.mine?.p && /^Q\d$/.test(v.mine.p) ? +v.mine.p[1] : 0; let side = 0;
-    box.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => { side = +b.dataset.g; if (cur) act({ action: 'goal', side, q: cur }, () => toast('But enregistré')); else $('#qask').hidden = false; }));
-    box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); v = await liveApi(m.id, { action: 'goal', side, q }); draw(); toast('But enregistré'); } catch (e) { toast(e.message); } }));
+    box.querySelector('[data-note]')?.addEventListener('click', () => act({ action: 'note', txt: draft.txt }));
+    box.querySelectorAll('[data-res]').forEach((b) => (b.onclick = () => { const [id, res] = b.dataset.res.split(':'); act({ action: 'resolve', id, res, who: draft.who, txt: draft.txt }); }));
+    const cur = v.mine?.p && /^Q\d$/.test(v.mine.p) ? +v.mine.p[1] : 0;
+    const go = (p) => { pend = p; if (cur) run(cur); else $('#qask').hidden = false; };
+    const run = (q) => act(pend.type === 'goal' ? { action: 'goal', side: pend.side, q, who: draft.who } : { action: 'sp', k: pend.k, side: pend.side, q });
+    box.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => go({ type: 'goal', side: +b.dataset.g })));
+    box.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { const [k, s] = b.dataset.sp.split(':'); go({ type: 'sp', k, side: +s }); }));
+    box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); } catch {} await run(q); }));
   };
-  const poll = async () => { try { const n = await liveApi(m.id); if (n.official) { box.innerHTML = ''; clearInterval(liveTimer); return; } v = n; if (!box.contains(document.activeElement) || !document.activeElement?.matches('button')) draw(); } catch {} };
+  const poll = async () => { try { const n = await liveApi(m.id); if (n.official) { box.innerHTML = ''; clearInterval(liveTimer); return; } v = n; const a = document.activeElement; if (!(box.contains(a) && a.matches('input,button'))) draw(); } catch {} };
   draw(); await poll();
   clearInterval(liveTimer); liveTimer = setInterval(() => { if (!document.hidden) poll(); }, 8000);
 }

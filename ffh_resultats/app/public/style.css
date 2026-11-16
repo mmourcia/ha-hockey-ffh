@@ -104,3 +104,10 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .ckrow{display:flex;gap:12px;align-items:flex-start}.ck{width:22px;height:22px;margin-top:2px;accent-color:var(--acc);flex:none}
 .btn.off{opacity:.4;pointer-events:none}
 .t.st td.form{white-space:nowrap;text-align:left;padding-left:4px}.t.st .fm{width:15px;height:15px;line-height:15px;font-size:9px;margin-right:1px}
+/* 1.11 */
+.m-teams .cmp{display:block;margin-top:4px;font-size:13px;font-weight:700;color:var(--acc);line-height:1.25;white-space:normal}.m-teams .cmp span{font-weight:500;color:var(--mute)}
+.evs{margin-top:6px}.ev{display:flex;gap:10px;align-items:flex-start;border-top:1px solid var(--line);padding:8px 0}.ev .q{flex:none;width:30px;font-weight:700;color:var(--mute)}.ev-b{flex:1;min-width:0;overflow-wrap:anywhere}
+.gb.alt{background:var(--brand);font-size:15px;padding:12px 6px}
+.gbtns.sp{grid-template-columns:1fr 1fr}
+.open{border:1px solid var(--acc);border-radius:12px;padding:10px;margin:0 0 10px;background:var(--acc2)}
+.cmt{display:flex;gap:8px;align-items:center;margin:8px 0 4px}.cmt .search{margin:0;flex:1}
