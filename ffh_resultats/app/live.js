@@ -88,6 +88,8 @@ export function createLive(dir, { now = () => Date.now() } = {}) {
     if (!rec.r[vid] && Object.keys(rec.r).length >= MAX_REPORTERS) return { error: 'trop de saisisseurs sur ce match' };
     const me = (rec.r[vid] ||= { g: [], x: [], qs: {}, p: null, pt: 0, seen: now() });
     const t = now();
+    // après « Fin de match », plus aucune nouvelle saisie (on peut encore corriger ou supprimer les siennes)
+    if (me.p === 'END' && ['goal', 'sp', 'resolve', 'note', 'period'].includes(body.action)) return { error: 'Vous avez déclaré la fin du match : plus de nouvelle saisie possible.' };
     const room = () => me.x.length < MAX_EVENTS;
     const qOk = (q) => [1, 2, 3, 4].includes(q);
     switch (body.action) {

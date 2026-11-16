@@ -143,3 +143,16 @@ test('pause : durée du quart-temps terminé', () => {
   l.report('m1', A, { action: 'period', p: 'Q1' }); tick(6 * 60e3); l.report('m1', A, { action: 'period', p: 'PAUSE' });
   assert.equal(l.view('m1').lastQMs, 6 * 60e3);
 });
+
+test('après la fin du match déclarée : plus de nouvelle saisie, mais correction possible', () => {
+  const { l } = mk();
+  l.report('m1', A, { action: 'period', p: 'Q4' }); l.report('m1', A, { action: 'goal', side: 0, q: 4 });
+  l.report('m1', A, { action: 'period', p: 'END' });
+  assert.ok(l.report('m1', A, { action: 'goal', side: 0, q: 4 }).error);
+  assert.ok(l.report('m1', A, { action: 'note', txt: 'trop tard' }).error);
+  assert.ok(l.report('m1', A, { action: 'period', p: 'Q1' }).error);
+  const id = l.view('m1', A).mine.goals[0].id;
+  assert.ok(l.report('m1', A, { action: 'edit', id, who: 'X' }).ok);
+  assert.ok(l.report('m1', A, { action: 'del', id }).ok);
+  assert.ok(l.report('m1', B, { action: 'goal', side: 1, q: 4 }).ok); // un autre saisisseur n'est pas concerné
+});

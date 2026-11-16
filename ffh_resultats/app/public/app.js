@@ -471,8 +471,8 @@ views.equipe = async (id, tab) => {
 
 const inWindow = (m) => { if (!m.date || m.status !== 'upcoming') return false; const t = new Date(m.date.replace(' ', 'T')).getTime(), now = Date.now(); return hhmm(m) ? now > t - 3 * 3600e3 && now < t + 6 * 3600e3 : m.date.slice(0, 10) === todayKey(); };
 async function liveApi(id, body) {
-  const r = await fetch('/api/live/' + id, body ? { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ vid: VID, ...body }) } : { headers: { 'x-vid': VID }, cache: 'no-store' });
-  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status); return j;
+  const r = await fetch('/api/live/' + id, body ? { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ vid: VID, pin: store.get('livepin', ''), ...body }) } : { headers: { 'x-vid': VID }, cache: 'no-store' });
+  const j = await r.json().catch(() => ({})); if (!r.ok) { if (j.code) store.set('livepin', ''); throw new Error(j.error || 'Erreur ' + r.status); } return j;
 }
 const hmin = (t) => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
 const mmss = (ms) => `${pad(Math.floor(ms / 60e3))}:${pad(Math.floor((ms % 60e3) / 1000))}`;
@@ -520,13 +520,15 @@ function liveTop(m, v, scoring, ui = {}) {
   const ask = ui.ask ? `<div class="open ask"><div class="lv-top" style="margin-bottom:2px"><b>🥅 But ${T(ui.ask.side)} : qui ?</b><button class="link" data-whoskip>🤷 Je ne sais pas</button></div><div class="cmt"><input class="search mini" id="whoq" maxlength="40" autocomplete="off" placeholder="Prénom, nom ou n° (facultatif)" value="${esc(draft.who)}"><button class="btn" data-whook>OK</button></div><div class="sug" id="sug"></div></div>` : '';
   const panel = scoring ? `<div class="scorer"><div class="lv-top"><b>Vous saisissez</b><button class="link" data-stop>Arrêter</button></div>
     ${ask}
+    ${mine.p === 'END' ? '<div class="open">🔒 <b>Fin de match déclarée</b> : plus aucune nouvelle saisie n’est possible. Vous pouvez encore corriger ou supprimer vos saisies dans le déroulé du match.</div>' : `
     <div class="chips pp">${['Q1', 'Q2', 'Q3', 'Q4', 'PAUSE', 'END'].map((p) => `<button class="chip ${mine.p === p ? 'on' : ''}" data-pp="${p}">${p === 'PAUSE' ? 'Pause' : p === 'END' ? 'Fin' : p}</button>`).join('')}</div>
     <div id="qask" hidden><div class="small muted">Dans quel quart-temps ?</div><div class="chips pp">${[1, 2, 3, 4].map((q) => `<button class="chip" data-gq="${q}">Q${q}</button>`).join('')}</div></div>
     <div class="lv-cols">${side(0)}${side(1)}</div>
     ${mine.open.map((o) => `<div class="open"><b>${o.k === 'pc' ? '🚩 Penalty corner' : '🎯 Stroke'} ${T(o.side)}</b> <span class="muted small">(Q${o.q})</span> : issue ?<div class="chips pp"><button class="chip" data-res="${o.id}:saved">🧤 Arrêté</button><button class="chip" data-res="${o.id}:but">🥅 But</button><button class="chip" data-res="${o.id}:miss">❌ Non cadré</button></div></div>`).join('')}
     <div class="cmt"><input class="search mini" id="txt" maxlength="140" placeholder="Commentaire (facultatif)" value="${esc(draft.txt)}"><button class="btn" data-note>Publier</button></div>
+`}
     <button class="link" data-undo ${mine.goals.length || mine.open.length || mine.notes ? '' : 'disabled'}>↩ Annuler ma dernière saisie</button></div>`
-    : open ? '<button class="btn primary" data-start>📣 Je saisis ce match</button>' : '';
+    : open ? (v.input === 'closed' ? '<p class="muted small" style="margin:8px 0 0">🔒 La saisie du score est réservée pour le moment. Vous pouvez suivre le match en direct ici.</p>' : '<button class="btn primary" data-start>📣 Je saisis ce match</button>') : '';
   return `<div class="card pad lv-card">${board}${panel}</div>`;
 }
 // éditeur d'une de MES entrées de la frise
@@ -589,7 +591,7 @@ async function startLive(m) {
   const askWho = (side) => { const n = (v.mine?.goals || []).length; if (n) { ui.ask = { side, i: n - 1 }; draft.who = ''; draw(); } };
   const draw = () => {
     if (!$('#live')) return;
-    const scoring = sess.get(key) && inWindow(m);
+    const scoring = sess.get(key) && inWindow(m) && v.input !== 'closed';
     box.innerHTML = liveTop(m, v, scoring, ui); tl.innerHTML = liveTimeline(m, v, edit);
     // celui qui saisit garde son panneau en haut et la frise en bas de page ; celui qui regarde a la frise juste sous le score
     if (scoring) { if (tl !== app.lastElementChild) app.append(tl); } else if (tl.previousElementSibling !== box) box.after(tl);
@@ -624,10 +626,17 @@ async function startLive(m) {
     });
     edSug();
     const act = async (body, after) => { try { v = await liveApi(m.id, body); clockOffset = (v.now || Date.now()) - Date.now(); if (body.action === 'note') draft.txt = ''; if (['edit', 'del'].includes(body.action)) edit = null; if (body.action === 'undo') ui = {}; else if (!after) ui = ui.ask ? ui : {}; if (after) { ui = {}; draw(); after(); } else draw(); toast('Enregistré'); } catch (e) { toast(e.message); } };
-    box.querySelector('[data-start]')?.addEventListener('click', () => { sess.set(key, true); draw(); window.scrollTo(0, 0); });
+    box.querySelector('[data-start]')?.addEventListener('click', async () => {
+      if (v.input === 'code') {
+        let c = store.get('livepin', '');
+        if (!c) { c = (prompt('Code de saisie :') || '').trim(); if (!c) return; store.set('livepin', c); }
+        try { await liveApi(m.id, { action: 'check' }); } catch (e) { toast(e.message); return; }
+      }
+      sess.set(key, true); draw(); window.scrollTo(0, 0);
+    });
     box.querySelector('[data-stop]')?.addEventListener('click', () => { sess.set(key, false); draw(); });
     tl.querySelector('[data-demo-reset]')?.addEventListener('click', async () => { try { v = await liveApi('demo', { action: 'reset' }); sess.set(key, false); draw(); toast('Démo remise à zéro'); } catch (e) { toast(e.message); } });
-    box.querySelectorAll('[data-pp]').forEach((b) => (b.onclick = () => act({ action: 'period', p: b.dataset.pp })));
+    box.querySelectorAll('[data-pp]').forEach((b) => (b.onclick = () => { if (b.dataset.pp === 'END' && !confirm('Terminer le match ?\n\nAprès « Fin de match », vous ne pourrez plus ajouter aucune saisie (but, penalty corner, commentaire…). Vous pourrez seulement corriger ou supprimer vos saisies existantes.')) return; act({ action: 'period', p: b.dataset.pp }); }));
     box.querySelector('[data-undo]')?.addEventListener('click', () => act({ action: 'undo' }));
     box.querySelector('[data-note]')?.addEventListener('click', () => act({ action: 'note', txt: draft.txt }));
     box.querySelectorAll('[data-res]').forEach((b) => (b.onclick = () => { const [id, res] = b.dataset.res.split(':'); const o = (v.mine?.open || []).find((x) => x.id === id); act({ action: 'resolve', id, res, txt: draft.txt }, res === 'but' ? () => askWho(o?.side ?? 0) : undefined); }));
@@ -638,7 +647,7 @@ async function startLive(m) {
     box.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { const [k, s] = b.dataset.sp.split(':'); go({ type: 'sp', k, side: +s }); }));
     box.querySelectorAll('[data-gq]').forEach((b) => (b.onclick = async () => { const q = +b.dataset.gq; try { await liveApi(m.id, { action: 'period', p: 'Q' + q }); } catch {} run(q); }));
   };
-  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); const mm = D.matches.find((x) => x.id === m.id); if (mm && m.id !== 'demo') renderArchive({ ...mm, status: 'played' }); return false; } v = { ...n, mine: n.mine ?? v.mine }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!((box.contains(a) || tl.contains(a)) && a.matches('input,button'))) draw(); return true; };
+  const apply = (n) => { if (n.official) { box.innerHTML = ''; tl.innerHTML = ''; stop(); const mm = D.matches.find((x) => x.id === m.id); if (mm && m.id !== 'demo') renderArchive({ ...mm, status: 'played' }); return false; } v = { ...n, mine: n.mine ?? v.mine, input: n.input ?? v.input }; clockOffset = (n.now || Date.now()) - Date.now(); const a = document.activeElement; if (!((box.contains(a) || tl.contains(a)) && a.matches('input,button'))) draw(); return true; };
   const poll = async () => { try { apply(await liveApi(m.id)); } catch {} };
   let es = null, tick = 0, clk = null;
   const stop = () => { clearInterval(liveTimer); clearInterval(clk); es?.close(); document.removeEventListener('visibilitychange', onVis); };

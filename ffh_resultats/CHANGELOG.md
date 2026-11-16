@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.0
+- Accès à la saisie en direct : nouvelle option `live_input_code`. Vide (défaut) = saisie fermée à tout le monde (le suivi reste public) ; un code = seules les personnes qui le connaissent peuvent saisir (demandé une fois, mémorisé sur l'appareil, 10 essais ratés / 10 min / adresse) ; `*` = ouverte à tous.
+- « Fin de match » demande confirmation en expliquant qu'aucune saisie supplémentaire ne sera possible ; ensuite le panneau se verrouille (seule la correction / suppression de ses saisies reste possible).
+
 ## 1.16.1
 - Arbitres : tri par cartons verts ajouté ; le total des cartons n'est plus affiché deux fois et s'écrit « 56 cartons » au lieu de « Σ 56 ».
 - Joueurs : le total des cartons s'affiche (« N cartons ») ; colonne « Tot. » dans le tableau des buteurs.

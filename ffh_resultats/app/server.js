@@ -7,6 +7,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createPush } from './push.js';
 import { createStats } from './stats.js';
@@ -26,6 +27,14 @@ const INCLUDE_YOUTH = process.env.INCLUDE_YOUTH === 'true';
 const push = createPush(DATA);
 const usage = createStats(DATA);
 const live = createLive(DATA);
+// accès à la saisie en direct : code (option live_input_code) / '*' = ouverte à tous / vide = fermée
+const LIVE_CODE = process.env.LIVE_INPUT_CODE || '';
+const inputMode = LIVE_CODE === '*' ? 'open' : LIVE_CODE ? 'code' : 'closed';
+const sha = (x) => crypto.createHash('sha256').update(String(x ?? '')).digest();
+const codeOk = (c) => crypto.timingSafeEqual(sha(c), sha(LIVE_CODE));
+const pinFail = new Map(); // ip -> { t, n }
+const pinLimited = (ip) => { const r = pinFail.get(ip); return !!r && Date.now() - r.t < 600e3 && r.n >= 10; };
+const pinFailed = (ip) => { const r = pinFail.get(ip); if (!r || Date.now() - r.t >= 600e3) pinFail.set(ip, { t: Date.now(), n: 1 }); else r.n++; };
 const sse = new Map(); // matchId -> Set(res) : spectateurs connectés au flux temps réel
 let sseCount = 0;
 const sseBroadcast = (id) => {
@@ -299,10 +308,11 @@ const api = async (req, res, url) => {
         req.on('close', () => { if (set.delete(res)) sseCount--; if (!set.size) sse.delete(String(m.id)); });
         return;
       }
-      if (req.method === 'GET') return send(req, res, 200, { official: m.status === 'played', ...live.view(m.id, req.headers['x-vid']) }, noStore);
+      if (req.method === 'GET') return send(req, res, 200, { official: m.status === 'played', input: inputMode, ...live.view(m.id, req.headers['x-vid']) }, noStore);
       if (req.method !== 'POST') return send(req, res, 405, { error: 'GET ou POST' });
       const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
       if (liveLimited(ip)) return send(req, res, 429, { error: 'Trop de saisies, patientez quelques minutes.' });
+      if (inputMode === 'closed') return send(req, res, 403, { error: 'La saisie en direct est réservée pour le moment.', input: inputMode });
       if (m.status === 'played' || m.status === 'forfeit' || m.status === 'cancelled') return send(req, res, 409, { error: 'La feuille officielle est déjà publiée : saisie fermée.' });
       const start = m.demo ? new Date() : parisToDate(m.date || '');
       const timed = m.demo || (m.date || '').slice(11, 16) !== '00:00';
@@ -310,6 +320,11 @@ const api = async (req, res, url) => {
       if (!start || (process.env.LIVE_OPEN_ALWAYS ? false : timed ? (now < start - 3 * 3600e3 || now > start.getTime() + 6 * 3600e3) : (now < start - 12 * 3600e3 || now > start.getTime() + 36 * 3600e3))) return send(req, res, 409, { error: 'La saisie n’est ouverte que le jour du match (de 3 h avant à 6 h après le coup d’envoi).' });
       const body = await new Promise((ok, ko) => { let b = ''; req.on('data', (d) => { b += d; if (b.length > 2048) req.destroy(); }).on('end', () => ok(b)).on('error', ko); });
       let j = {}; try { j = JSON.parse(body || '{}'); } catch {}
+      if (inputMode === 'code') {
+        if (pinLimited(ip)) return send(req, res, 429, { error: 'Trop d’essais de code, patientez quelques minutes.' });
+        if (!codeOk(j.pin)) { pinFailed(ip); return send(req, res, 403, { error: 'Code de saisie incorrect.', code: true, input: inputMode }); }
+      }
+      if (j.action === 'check') return send(req, res, 200, { ok: true, input: inputMode }, noStore);
       if (j.action === 'reset') { if (!m.demo) return send(req, res, 400, { error: 'réservé au match de démonstration' }); live.reset('demo'); sseBroadcast('demo'); return send(req, res, 200, { official: false, ...live.view('demo', j.vid) }, noStore); }
       const r = live.report(m.id, j.vid, j);
       if (r.error) return send(req, res, 400, r);

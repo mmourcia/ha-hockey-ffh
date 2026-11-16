@@ -6,6 +6,7 @@ export ADMIN_PORT=8100
 export INCLUDE_YOUTH="$(jq -r '.include_youth_players // false' /data/options.json)"
 rm -f /data/public_url
 export VAPID_SUBJECT="$(jq -r '.vapid_subject' /data/options.json)"
+export LIVE_INPUT_CODE="$(jq -r '.live_input_code // ""' /data/options.json)"
 export REFRESH_MS="$(( $(jq -r '.refresh_minutes' /data/options.json) * 60000 ))"
 
 AUTHKEY="$(jq -r '.tailscale_authkey // empty' /data/options.json)"
