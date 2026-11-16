@@ -41,7 +41,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 4px;t
 <div class="wrap">
   <header>
     <div style="font-size:38px">🏑</div>
-    <div class="grow"><h1>Hockey FFH – Résultats</h1><div class="sub" id="sub">Chargement…</div></div>
+    <div class="grow"><h1>Hockey FFH – Résultats</h1><div class="sub" id="sub">Chargement…</div><div class="sub" id="syncline" style="margin-top:2px"></div></div>
     <span class="badge init" id="badge"><i></i><span>…</span></span>
   </header>
   <div class="tabs"><button class="tab on" data-tab="state">🛠 État</button><button class="tab" data-tab="usage">📈 Fréquentation</button><button class="tab" data-tab="live">💬 Saisies en direct</button></div>
@@ -67,6 +67,9 @@ async function post(p) { try { await fetch(base + p, { method: 'POST' }); } catc
 async function load() {
   let s; try { s = await (await fetch(base + 'status', { cache: 'no-store' })).json(); } catch { $('#sub').textContent = 'Add-on injoignable'; return; }
   $('#sub').textContent = `Version ${s.version} · saison ${s.seasonLabel || '—'} · actif depuis ${dur(s.uptimeSec)}`;
+  const when = (iso) => { const d = new Date(iso), t = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), same = d.toDateString() === new Date().toDateString(); return same ? t : d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) + ', ' + t; };
+  const MODE = { live: '🟢 match en cours', soon: '🟡 match dans moins de 3 h', today: '🟡 match dans les 24 h', idle: '⚪ aucun match proche' };
+  $('#syncline').innerHTML = s.nextSync ? `🔄 Prochaine synchro prévue <b>${s.refreshing ? 'en cours…' : ago(s.nextSync)}</b> <span class="muted">(${when(s.nextSync)}${s.syncMode ? ' · ' + MODE[s.syncMode] : ''})</span>` : '';
   const b = $('#badge'); b.className = 'badge ' + s.state + (s.refreshing ? ' spin' : ''); b.lastElementChild.textContent = s.refreshing ? 'Synchronisation en cours…' : LABEL[s.state] + (s.lastSync ? ` · ${ago(s.lastSync)} (${new Date(s.lastSync).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})` : '');
   $('#actions').innerHTML = (s.publicUrl ? `<a class="btn primary" href="${esc(s.publicUrl)}" target="_blank" rel="noopener">🌐 Ouvrir le site public</a><button class="btn" id="cp">📋 Copier le lien</button>` : '<span class="btn" style="cursor:default">🔒 Pas de lien public — renseignez la clé Tailscale</span>') +
     `<button class="btn" id="rf" ${s.refreshing ? 'disabled' : ''}>🔄 Synchroniser maintenant</button><button class="btn" id="cr" ${s.sheets.crawling ? 'disabled' : ''}>📄 Relire les feuilles de match</button>`;

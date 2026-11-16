@@ -235,6 +235,7 @@ const api = async (req, res, url) => {
       await ensure(season); const known = players(season);
       sh.players = sh.players.map((side) => side.map(({ licence, ...x }) => { const id = licence ? pidOf(licence) : null; return { ...x, id: id && known.has(id) ? id : null }; }));
       sh.injuries = sh.injuries.map((t) => (t || '').replace(/\b\d{6,9}\s*-\s*/g, ''));
+      sh.scorers = (sh.scorers || []).map((side, si) => side.map((g) => ({ ...g, id: (g.name && sh.players[si].find((p) => p.name === g.name)?.id) || null })));
       return send(req, res, 200, sh, { 'cache-control': 'public, max-age=120' });
     }
     if (p[0] === 'referees') {

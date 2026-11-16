@@ -364,7 +364,7 @@ views.arbitre = async (id) => {
 let scSort = { k: 'goals', dir: 1 };
 let jState = { q: '', mine: true, sort: 'goals' };
 const JSORTS = [['goals', '🥅 Buts'], ['cards', 'Cartons (tous)'], ['green', '🟩'], ['yellow', '🟨'], ['red', '🟥'], ['matches', 'Matchs']];
-const statCells = (r) => `<span title="Buts">🥅 <b>${r.goals}</b></span><span title="Total des cartons (verts + jaunes + rouges)"><b>${r.green + r.yellow + r.red}</b> carton${r.green + r.yellow + r.red > 1 ? 's' : ''}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs joués">${r.matches} match${r.matches > 1 ? 's' : ''}</span>`;
+const statCells = (r) => { const cards = r.green + r.yellow + r.red; return `<span class="st" title="Buts marqués"><b>${r.goals}</b>but${r.goals > 1 ? 's' : ''}</span><span class="st" title="Cartons reçus (verts, jaunes, rouges)"><b>${cards}</b>carton${cards > 1 ? 's' : ''}${cards ? `<small>${r.green ? '🟩' + r.green + ' ' : ''}${r.yellow ? '🟨' + r.yellow + ' ' : ''}${r.red ? '🟥' + r.red : ''}</small>` : ''}</span><span class="st" title="Matchs joués"><b>${r.matches}</b>match${r.matches > 1 ? 's' : ''}</span>`; };
 views.joueurs = async () => {
   const mineTeams = favs.teams;
   app.innerHTML = `<h1>Compétitions</h1>${compTabs('joueurs')}
@@ -396,7 +396,7 @@ views.joueur = async (id) => {
     const tot = p.rows.reduce((a, r) => ({ goals: a.goals + r.goals, green: a.green + r.green, yellow: a.yellow + r.yellow, red: a.red + r.red, matches: a.matches + r.matches }), { goals: 0, green: 0, yellow: 0, red: 0, matches: 0 });
     app.innerHTML = `<h1 style="margin-bottom:2px">${esc(p.name)}</h1><div class="stats" style="margin-bottom:10px">${statCells(tot)}</div>
     ${p.rows.map((r) => `<div class="card pad" style="margin-bottom:8px"><a href="#/equipe/${r.team.id}"><b>${esc(r.team.name)}</b></a><div class="muted small">${esc(r.comp.name)}</div><div class="stats">${statCells(r)}</div></div>`).join('')}
-    <h2>Match par match</h2><div class="card">${p.games.map((g) => g.match ? `<div>${matchCard(g.match, { showComp: true })}<div class="stats small" style="padding:0 12px 8px 74px">${g.goals ? `🥅 ${g.goals} ` : ''}${'🟩'.repeat(g.c[0])}${'🟨'.repeat(g.c[1])}${'🟥'.repeat(g.c[2])}${!g.goals && !g.c.some(Boolean) ? '<span class="muted">—</span>' : ''}</div></div>` : '').join('')}</div>`;
+    <h2>Match par match</h2><div class="card">${p.games.map((g) => g.match ? `<div>${matchCard(g.match, { showComp: true })}<div class="gxs">${g.goals ? `<span class="gx g">🥅 ${g.goals} but${g.goals > 1 ? 's' : ''}</span>` : ''}${g.c[0] ? `<span class="gx">🟩 ${g.c[0]} vert${g.c[0] > 1 ? 's' : ''}</span>` : ''}${g.c[1] ? `<span class="gx">🟨 ${g.c[1]} jaune${g.c[1] > 1 ? 's' : ''}</span>` : ''}${g.c[2] ? `<span class="gx">🟥 ${g.c[2]} rouge${g.c[2] > 1 ? 's' : ''}</span>` : ''}${!g.goals && !g.c.some(Boolean) ? '<span class="muted small">Ni but ni carton</span>' : ''}</div></div>` : '').join('')}</div>`;
   } catch { app.innerHTML = '<div class="empty">Joueur introuvable. <a class="btn" href="#/joueurs">Rechercher</a></div>'; }
 };
 
@@ -676,6 +676,7 @@ async function preMatch(m) {
   const R = (l, f) => `<tr><td class="muted small">${l}</td><td>${f(ids[0], p1)}</td><td>${f(ids[1], p2)}</td></tr>`;
   box.innerHTML = `<h2>Avant le match</h2><div class="card pre"><table class="t"><tr><th></th><th class="l">${esc(m.t1.name)}</th><th class="l">${esc(m.t2.name)}</th></tr>${R('Classement', pos)}${R('5 derniers', form)}${R('Attaque', att)}${R('Défense', def)}${R('Meilleur buteur', (id, p) => top(p))}${R('Cartons', (id, p) => cards(p))}</table></div>${h2h.length ? `<h2>Déjà rencontrés cette saison</h2><div class="card">${h2h.map((x) => matchCard(x, { showComp: true })).join('')}</div>` : ''}`;
 }
+const scName = (g) => { const n = esc(g.name || 'N°' + g.no); return (g.id ? `<a href="#/joueur/${g.id}">${n}</a>` : n) + (g.n > 1 ? ' ×' + g.n : ''); };
 const isStaff = (p) => !p.gk && !/^\d+$/.test(String(p.shirt || '').trim());
 views.match = async (id) => {
   // match fictif pour s'entraîner à la saisie en direct : #/match/demo (non listé, toujours ouvert)
@@ -698,8 +699,8 @@ views.match = async (id) => {
     const s = await api('match/' + id);
     // cartons par équipe, à côté du nom de l'équipe
     const teamCards = (i) => { const t = { green: 0, yellow: 0, red: 0 }; for (const p of s.players[i]) { t.green += p.cd?.green || 0; t.yellow += p.cd?.yellow || 0; t.red += p.cd?.red || 0; } const b = ['green', 'yellow', 'red'].filter((k) => t[k]).map((k) => `<span class="cd ${k}"></span>×${t[k]}`).join(' '); return b ? ` <span class="tcards" title="Cartons de l’équipe">${b}</span>` : ''; };
-    const col = (i) => `<div><div class="small muted" style="margin-bottom:4px"><b>${esc(m['t' + (i + 1)].name)}</b>${teamCards(i)}</div>${s.scorers[i].length ? `<div class="pl"><span>🥅</span><span>${s.scorers[i].map((g) => esc(g.name || 'N°' + g.no) + (g.n > 1 ? ' ×' + g.n : '')).join(', ')}</span></div>` : ''}${s.players[i].filter((p) => !isStaff(p)).map((p) => `<div class="pl"><span class="no">${p.gk ? 'GK' : esc(p.shirt)}</span>${p.id ? `<a class="nm" href="#/joueur/${p.id}">${esc(p.name)}</a>` : `<span class="nm">${esc(p.name)}</span>`}${p.card ? `<span class="cd ${p.card}" title="Carton"></span>` : ''}</div>`).join('')}${s.players[i].some(isStaff) ? `<div class="small muted" style="margin-top:8px"><b>Encadrement</b></div>${s.players[i].filter(isStaff).map((p) => `<div class="staff"><span class="nm2">${esc(p.name)}</span><span class="muted small">${esc(p.shirt)}</span></div>`).join('')}` : ''}${s.injuries[i] ? `<div class="small muted" style="margin-top:6px">🩹 ${esc(s.injuries[i])}</div>` : ''}</div>`;
-    const gl = (i) => s.scorers[i].map((g) => `${esc(g.name || 'N°' + g.no)}${g.n > 1 ? ' ×' + g.n : ''}`).join(', ');
+    const col = (i) => `<div><div class="small muted" style="margin-bottom:4px"><b>${esc(m['t' + (i + 1)].name)}</b>${teamCards(i)}</div>${s.scorers[i].length ? `<div class="pl"><span>🥅</span><span>${s.scorers[i].map(scName).join(', ')}</span></div>` : ''}${s.players[i].filter((p) => !isStaff(p)).map((p) => `<div class="pl"><span class="no">${p.gk ? 'GK' : esc(p.shirt)}</span>${p.id ? `<a class="nm" href="#/joueur/${p.id}">${esc(p.name)}</a>` : `<span class="nm">${esc(p.name)}</span>`}${p.card ? `<span class="cd ${p.card}" title="Carton"></span>` : ''}</div>`).join('')}${s.players[i].some(isStaff) ? `<div class="small muted" style="margin-top:8px"><b>Encadrement</b></div>${s.players[i].filter(isStaff).map((p) => `<div class="staff"><span class="nm2">${esc(p.name)}</span><span class="muted small">${esc(p.shirt)}</span></div>`).join('')}` : ''}${s.injuries[i] ? `<div class="small muted" style="margin-top:6px">🩹 ${esc(s.injuries[i])}</div>` : ''}</div>`;
+    const gl = (i) => s.scorers[i].map(scName).join(', ');
     if (s.scorers[0].length + s.scorers[1].length) $('#goals').innerHTML = `<div class="cols" style="text-align:left"><div>🥅 ${gl(0) || '—'}</div><div>🥅 ${gl(1) || '—'}</div></div>`;
 
     $('#sheet').innerHTML = `<h2>Feuille de match</h2><div class="card"><div class="cols">${col(0)}${col(1)}</div></div>

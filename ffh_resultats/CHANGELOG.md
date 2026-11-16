@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17.2
+- Panneau HA : sous le titre, « Prochaine synchro prévue dans N min/h/j (heure ou jour + heure) » avec le mode (match en cours / proche / aucun match proche).
+- Feuille de match : les buteurs sont cliquables (fiche joueur).
+- Fiches et listes de joueurs : buts / cartons / matchs en tuiles lisibles avec libellés (détail 🟩🟨🟥 sous le total des cartons) ; « Match par match » avec pastilles « 🥅 2 buts », « 🟨 1 jaune »…
+
 ## 1.17.1
 - Feuille de match : les cartons s'affichent par équipe, à côté du nom de l'équipe, au lieu d'un total pour les deux équipes.
 - Les joueurs de la feuille sont cliquables et mènent à leur fiche individuelle (identifiant opaque, jamais le n° de licence ; pas de lien pour les catégories de jeunes non indexées).
