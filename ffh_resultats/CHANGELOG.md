@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.18.2
+- Panneau HA : la carte « Synchronisation avec la FFH » affiche l'identité des appels sortants (User-Agent réellement utilisé).
+
 ## 1.18.1
 - Identité des appels sortants : `Hockey-FFH-Resultats/<version>` avec, si l'option HA `contact_email` est renseignée, `(contact: …)`. L'adresse reste dans la configuration de l'add-on et n'est jamais écrite dans le code publié.
 

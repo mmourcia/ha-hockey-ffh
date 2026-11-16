@@ -412,7 +412,7 @@ async function status() {
   return {
     version: process.env.APP_VERSION || 'dev', now: new Date().toISOString(), uptimeSec: Math.floor((Date.now() - health.start) / 1000),
     publicUrl: readPublicUrl(), season: currentSeason, seasonLabel: idx ? `${+currentSeason - 1}/${currentSeason}` : null,
-    refreshMs: REFRESH_MS, refreshing: health.refreshing,
+    refreshMs: REFRESH_MS, refreshing: health.refreshing, ua: UA,
     lastSync: lastAt ? new Date(lastAt).toISOString() : null, nextSync: health.next ? new Date(health.next.at).toISOString() : lastAt ? new Date(lastAt + REFRESH_MS).toISOString() : null, syncMode: health.next?.mode || null, syncDelayMs: health.next?.delay || REFRESH_MS,
     state: !idx ? 'init' : last && !last.ok ? 'error' : lastAt && Date.now() - lastAt > Math.max(REFRESH_MS * 3, (health.next?.delay || 0) + 10 * 60e3) ? 'late' : 'ok',
     counts: idx ? { comps: idx.comps.length, matches: idx.matches.length, played: idx.matches.filter((m) => m.status === 'played').length, upcoming: idx.matches.filter((m) => m.status === 'upcoming').length, clubs: idx.clubs.length, teams: new Set(idx.matches.flatMap((m) => [m.t1.id, m.t2.id])).size } : null,
