@@ -1,5 +1,5 @@
 name: "Hockey FFH Résultats"
-version: "1.18.2"
+version: "1.18.3"
 slug: ffh_resultats
 url: "https://github.com/mmourcia/ha-hockey-ffh"
 description: "PWA de résultats de la Fédération Française de Hockey (API FFH, Web Push)"

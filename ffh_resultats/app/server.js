@@ -219,7 +219,7 @@ const api = async (req, res, url) => {
     if (p[0] === 'data') {
       // si quelqu'un consulte le site et que les données sont anciennes, on relit en arrière-plan (au plus une fois par 10 min)
       const mode = health.next?.mode, stale = mode === 'soon' || mode === 'today' ? 30 * 60e3 : 3 * 3600e3;
-      if (!health.refreshing && health.lastFull && Date.now() - health.lastFull > stale && Date.now() - (health.attempt || 0) > 10 * 60e3) refresh(season);
+      if (!health.refreshing && health.lastFull && Date.now() - health.lastFull > stale && Date.now() - (health.attempt || 0) > 10 * 60e3) refresh(season).then(() => season === currentSeason && scheduleRefresh()).catch(() => {});
       const idx = await ensure(season);
       if (url.searchParams.get('v') === idx.version) return send(req, res, 200, { unchanged: true, version: idx.version }, noCache);
       return send(req, res, 200, idx.gz, { 'content-type': 'application/json; charset=utf-8', 'content-encoding': 'gzip', ...noCache });
@@ -378,11 +378,13 @@ http.createServer((req, res) => {
   scheduleRefresh();
 });
 // synchronisation adaptative : cadence « en direct » (REFRESH_MS) autour des matchs, espacée en semaine / quand rien ne se passe
+let syncTimer = null;
 function scheduleRefresh() {
+  clearTimeout(syncTimer);
   const idx = store[currentSeason];
   const d = nextDelay(idx?.matches || [], Date.now(), REFRESH_MS);
   health.next = { at: Date.now() + d.delay, delay: d.delay, mode: d.mode };
-  setTimeout(async () => {
+  syncTimer = setTimeout(async () => {
     // pendant un match : on ne relit que les compétitions concernées ; relecture complète toutes les 3 h au plus tard
     const cur = store[currentSeason], live = cur ? liveComps(cur.matches) : new Set();
     const full = !live.size || !health.lastFull || Date.now() - health.lastFull > 3 * 3600e3;
