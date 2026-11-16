@@ -260,7 +260,7 @@ views.comp = async (id, pouleId) => {
         const val = { goals: (s) => s.goals, cards: tot, green: (s) => s.green || 0, yellow: (s) => s.yellow || 0, red: (s) => s.red || 0 }[k];
         const rows = [...d.scorers].sort((a, b) => (val(b) - val(a)) * dir || a.rank - b.rank);
         const th = ([key, lab, tip]) => `<th data-k="${key}" title="${tip}" class="sortable${scSort.k === key ? ' on' : ''}">${lab}${scSort.k === key ? (dir === 1 ? ' ▼' : ' ▲') : ''}</th>`;
-        box.innerHTML = `<div class="card"><table class="t st"><tr><th>#</th><th class="l">Joueur</th>${[['goals', 'Buts', 'Trier par buts'], ['cards', 'Σ', 'Total des cartons'], ['green', '🟩', 'Verts'], ['yellow', '🟨', 'Jaunes'], ['red', '🟥', 'Rouges']].map(th).join('')}</tr>${rows.map((s, i) => `<tr><td class="pos">${scSort.k === 'goals' && dir === 1 ? s.rank : i + 1}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${tot(s) || ''}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>`;
+        box.innerHTML = `<div class="card"><table class="t st"><tr><th>#</th><th class="l">Joueur</th>${[['goals', 'Buts', 'Trier par buts'], ['cards', 'Tot.', 'Total des cartons (trier)'], ['green', '🟩', 'Verts'], ['yellow', '🟨', 'Jaunes'], ['red', '🟥', 'Rouges']].map(th).join('')}</tr>${rows.map((s, i) => `<tr><td class="pos">${scSort.k === 'goals' && dir === 1 ? s.rank : i + 1}</td><td class="team">${esc(s.name)}<div class="muted small">${esc(s.club || '')}</div></td><td class="pts">${s.goals}</td><td>${tot(s) || ''}</td><td>${s.green || ''}</td><td>${s.yellow || ''}</td><td>${s.red || ''}</td></tr>`).join('')}</table></div>`;
         box.querySelectorAll('th[data-k]').forEach((h) => (h.onclick = () => { scSort = { k: h.dataset.k, dir: scSort.k === h.dataset.k ? -scSort.dir : 1 }; draw(); }));
       };
       if (d.scorers.length) draw(); else box.innerHTML = '<div class="empty">Pas encore de buteurs.</div>';
@@ -325,9 +325,9 @@ views.buteurs = async () => {
 
 // ---------- Arbitres ----------
 let rState = { q: '', sort: 'matches' };
-const refStats = (r) => `<span title="Matchs arbitrés"><b>${r.matches}</b> match${r.matches > 1 ? 's' : ''}</span><span title="Total des cartons">Σ ${r.green + r.yellow + r.red}</span><span title="Total des cartons">Σ ${r.green + r.yellow + r.red}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Cartons par match">${r.perMatch} / match</span>`;
+const refStats = (r) => `<span title="Matchs arbitrés"><b>${r.matches}</b> match${r.matches > 1 ? 's' : ''}</span><span title="Total des cartons (verts + jaunes + rouges)"><b>${r.green + r.yellow + r.red}</b> carton${r.green + r.yellow + r.red > 1 ? 's' : ''}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Cartons par match">${r.perMatch} / match</span>`;
 views.arbitres = async () => {
-  const SORTS = [['matches', 'Matchs'], ['cards', 'Cartons'], ['perMatch', 'Cartons / match'], ['yellow', 'Jaunes'], ['red', 'Rouges']];
+  const SORTS = [['matches', 'Matchs'], ['cards', 'Cartons'], ['perMatch', 'Cartons / match'], ['green', 'Verts'], ['yellow', 'Jaunes'], ['red', 'Rouges']];
   app.innerHTML = `<h1>Compétitions</h1>${compTabs('arbitres')}
   <input class="search" id="rq" type="search" placeholder="Nom d’un arbitre…" autocomplete="off" value="${esc(rState.q)}">
   <div class="chips">${SORTS.map(([k, l]) => `<button class="chip ${rState.sort === k ? 'on' : ''}" data-s="${k}">${l}</button>`).join('')}</div>
@@ -364,7 +364,7 @@ views.arbitre = async (id) => {
 let scSort = { k: 'goals', dir: 1 };
 let jState = { q: '', mine: true, sort: 'goals' };
 const JSORTS = [['goals', '🥅 Buts'], ['cards', 'Cartons (tous)'], ['green', '🟩'], ['yellow', '🟨'], ['red', '🟥'], ['matches', 'Matchs']];
-const statCells = (r) => `<span title="Buts">🥅 <b>${r.goals}</b></span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs joués">${r.matches} match${r.matches > 1 ? 's' : ''}</span>`;
+const statCells = (r) => `<span title="Buts">🥅 <b>${r.goals}</b></span><span title="Total des cartons (verts + jaunes + rouges)"><b>${r.green + r.yellow + r.red}</b> carton${r.green + r.yellow + r.red > 1 ? 's' : ''}</span><span title="Cartons verts">🟩 ${r.green}</span><span title="Cartons jaunes">🟨 ${r.yellow}</span><span title="Cartons rouges">🟥 ${r.red}</span><span class="muted" title="Matchs joués">${r.matches} match${r.matches > 1 ? 's' : ''}</span>`;
 views.joueurs = async () => {
   const mineTeams = favs.teams;
   app.innerHTML = `<h1>Compétitions</h1>${compTabs('joueurs')}

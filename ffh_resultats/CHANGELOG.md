@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.16.1
+- Arbitres : tri par cartons verts ajouté ; le total des cartons n'est plus affiché deux fois et s'écrit « 56 cartons » au lieu de « Σ 56 ».
+- Joueurs : le total des cartons s'affiche (« N cartons ») ; colonne « Tot. » dans le tableau des buteurs.
+
 ## 1.16.0
 - Après le match, le déroulé saisi par les spectateurs reste consultable sous la feuille officielle : bloc replié « Déroulé saisi par des spectateurs · non officiel · N saisies », avec comparaison au score officiel (✓ conforme / ⚠ écart). Les saisies sont conservées jusqu'à la fin de la saison (300 jours) au lieu de 36 h.
 
