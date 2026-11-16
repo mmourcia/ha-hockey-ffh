@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.1
+- Agenda : cases à cocher pour choisir quelles équipes favorites ajouter ; préfixe facultatif avec un libellé neutre.
+- Classements : colonne « Forme » (5 derniers résultats V/N/D, le plus récent à droite).
+- Match de démonstration `#/match/demo` pour s'entraîner à la saisie en direct à tout moment (remise à zéro possible).
+
 ## 1.10.0
 - Score en direct collaboratif (non officiel) : sur la fiche d'un match, de 3 h avant à 6 h après le coup d'envoi, n'importe quel spectateur peut « saisir ce match » (aucun compte, aucune validation à gérer). Il indique le quart-temps (Q1-Q4, pause, fin du match) et touche « But » pour chaque équipe.
 - Concordance : chaque saisisseur a son propre compteur ; un but est « confirmé ✓N » quand plusieurs spectateurs l'ont vu (même équipe, même quart-temps), sinon « à confirmer ». La période affichée est celle de la majorité.

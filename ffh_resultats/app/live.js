@@ -77,7 +77,8 @@ export function createLive(dir, { now = () => Date.now() } = {}) {
     }
     return out;
   };
+  const reset = (id) => { delete S[id]; dirty = true; };
   const save = () => { if (!dirty) return; prune(); try { fs.writeFileSync(file, JSON.stringify(S)); dirty = false; } catch {} };
   const timer = setInterval(save, 30e3); timer.unref?.();
-  return { report, view, summary, save, has: (id) => !!S[id] };
+  return { report, view, summary, save, reset, has: (id) => !!S[id] };
 }

@@ -280,19 +280,20 @@ const api = async (req, res, url) => {
       const noStore = { 'cache-control': 'no-store' };
       if (!p[1]) return send(req, res, 200, live.summary(), noStore);
       const idx = await ensure(season);
-      const m = idx.matches.find((x) => String(x.id) === p[1]);
+      const m = p[1] === 'demo' ? { id: 'demo', status: 'upcoming', demo: true } : idx.matches.find((x) => String(x.id) === p[1]);
       if (!m || m.bye) return send(req, res, 404, { error: 'Match introuvable' });
       if (req.method === 'GET') return send(req, res, 200, { official: m.status === 'played', ...live.view(m.id, req.headers['x-vid']) }, noStore);
       if (req.method !== 'POST') return send(req, res, 405, { error: 'GET ou POST' });
       const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
       if (liveLimited(ip)) return send(req, res, 429, { error: 'Trop de saisies, patientez quelques minutes.' });
       if (m.status === 'played' || m.status === 'forfeit' || m.status === 'cancelled') return send(req, res, 409, { error: 'La feuille officielle est déjà publiée : saisie fermée.' });
-      const start = parisToDate(m.date || '');
-      const timed = (m.date || '').slice(11, 16) !== '00:00';
+      const start = m.demo ? new Date() : parisToDate(m.date || '');
+      const timed = m.demo || (m.date || '').slice(11, 16) !== '00:00';
       const now = Date.now();
       if (!start || (process.env.LIVE_OPEN_ALWAYS ? false : timed ? (now < start - 3 * 3600e3 || now > start.getTime() + 6 * 3600e3) : (now < start - 12 * 3600e3 || now > start.getTime() + 36 * 3600e3))) return send(req, res, 409, { error: 'La saisie n’est ouverte que le jour du match (de 3 h avant à 6 h après le coup d’envoi).' });
       const body = await new Promise((ok, ko) => { let b = ''; req.on('data', (d) => { b += d; if (b.length > 2048) req.destroy(); }).on('end', () => ok(b)).on('error', ko); });
       let j = {}; try { j = JSON.parse(body || '{}'); } catch {}
+      if (j.action === 'reset') { if (!m.demo) return send(req, res, 400, { error: 'réservé au match de démonstration' }); live.reset('demo'); return send(req, res, 200, { official: false, ...live.view('demo', j.vid) }, noStore); }
       const r = live.report(m.id, j.vid, j);
       if (r.error) return send(req, res, 400, r);
       return send(req, res, 200, { official: false, ...live.view(m.id, j.vid) }, noStore);

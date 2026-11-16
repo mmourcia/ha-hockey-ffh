@@ -100,3 +100,7 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}.t th{font-size:11px;
 .scorer{border-top:1px dashed var(--line);margin-top:12px;padding-top:12px}.link{border:0;background:none;color:var(--acc);font-size:13px;padding:4px}
 .gbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 12px}.gb{border:0;border-radius:14px;background:var(--acc);color:#fff;font-size:18px;font-weight:700;padding:16px 8px;line-height:1.25}.gb span{display:block;font-size:13px;font-weight:600;opacity:.9}.gb:active{transform:scale(.97)}
 .btn[disabled]{opacity:.45}
+/* 1.10.1 */
+.ckrow{display:flex;gap:12px;align-items:flex-start}.ck{width:22px;height:22px;margin-top:2px;accent-color:var(--acc);flex:none}
+.btn.off{opacity:.4;pointer-events:none}
+.t.st td.form{white-space:nowrap;text-align:left;padding-left:4px}.t.st .fm{width:15px;height:15px;line-height:15px;font-size:9px;margin-right:1px}

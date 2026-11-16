@@ -212,13 +212,18 @@ views.comps = async () => {
   app.innerHTML = h;
 };
 
+// 5 derniers résultats d'une équipe (V/N/D), le plus récent à droite
+function formChips(teamId) {
+  const ms = D.matches.filter((x) => !x.bye && x.status === 'played' && (x.t1.id === teamId || x.t2.id === teamId)).sort((x, y) => (y.date || '').localeCompare(x.date || '')).slice(0, 5).reverse();
+  return ms.map((x) => { const [f, c] = x.t1.id === teamId ? [x.s1, x.s2] : [x.s2, x.s1]; const r = f > c ? 'V' : f < c ? 'D' : 'N'; return `<span class="fm ${r}" title="${esc(x.t1.name)} ${x.s1}-${x.s2} ${esc(x.t2.name)}">${r}</span>`; }).join('');
+}
 function drawStandings(box, d, id) {
     const COLS = [['pos', '#', 1, 'Classement officiel'], ['team', 'Équipe', 1, 'Ordre alphabétique'], ['j', 'J', -1, 'Matchs joués'], ['g', 'G', -1, 'Victoires'], ['n', 'N', -1, 'Nuls'], ['pp', 'P', 1, 'Moins de défaites'], ['bp', 'BP', -1, 'Meilleure attaque (buts pour)'], ['bc', 'BC', 1, 'Meilleure défense (buts contre)'], ['diff', '+/-', -1, 'Meilleure différence de buts'], ['pts', 'Pts', -1, 'Points']];
     const val = (r, k) => (k === 'team' ? r.team.name || '' : k === 'pp' ? (r.p || 0) + (r.f || 0) : r[k] ?? 0);
     const draw = () => {
       const { k, dir } = stSort, rows = [...d.standings].sort((a, b) => { const x = val(a, k), y = val(b, k); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir || a.pos - b.pos; });
-      const th = COLS.map(([key, lab, def, tip]) => `<th data-s="${key}" title="${tip}" class="sortable${key === 'team' ? ' l' : ''}${k === key ? ' on' : ''}">${lab}${k === key ? (dir === 1 ? ' ▲' : ' ▼') : ''}</th>`).join('');
-      box.innerHTML = `<div class="card"><table class="t st"><tr>${th}</tr>${rows.map((r) => { const tid = `${id}:${r.team.id}`; const t = IDX.teams[tid]; const fav = isFavTeam(t); const mv = r.last && r.pos < r.last ? '<span class="up">▲</span>' : r.last && r.pos > r.last ? '<span class="dn">▼</span>' : ''; const hl = (key) => (k === key ? ' class="hl"' : ''); return `<tr class="${fav ? 'fav' : ''}"><td class="pos">${r.pos}</td><td class="team"><a href="#/equipe/${tid}">${esc(r.team.name)}</a> ${mv}</td><td${hl('j')}>${r.j}</td><td${hl('g')}>${r.g}</td><td${hl('n')}>${r.n}</td><td${hl('pp')}>${r.p + (r.f || 0)}</td><td${hl('bp')}>${r.bp ?? ''}</td><td${hl('bc')}>${r.bc ?? ''}</td><td${hl('diff')}>${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="pts">${r.pts}</td></tr>`; }).join('')}</table></div><p class="muted small">Touchez un en-tête pour trier (BP = attaque, BC = défense). Pts = points officiels FFH (pénalités déduites). ▲▼ = évolution depuis la journée précédente.</p>`;
+      const th = COLS.map(([key, lab, def, tip]) => `<th data-s="${key}" title="${tip}" class="sortable${key === 'team' ? ' l' : ''}${k === key ? ' on' : ''}">${lab}${k === key ? (dir === 1 ? ' ▲' : ' ▼') : ''}</th>`).join('') + '<th title="Les 5 derniers matchs (le plus récent à droite)">Forme</th>';
+      box.innerHTML = `<div class="card"><table class="t st"><tr>${th}</tr>${rows.map((r) => { const tid = `${id}:${r.team.id}`; const t = IDX.teams[tid]; const fav = isFavTeam(t); const mv = r.last && r.pos < r.last ? '<span class="up">▲</span>' : r.last && r.pos > r.last ? '<span class="dn">▼</span>' : ''; const hl = (key) => (k === key ? ' class="hl"' : ''); return `<tr class="${fav ? 'fav' : ''}"><td class="pos">${r.pos}</td><td class="team"><a href="#/equipe/${tid}">${esc(r.team.name)}</a> ${mv}</td><td${hl('j')}>${r.j}</td><td${hl('g')}>${r.g}</td><td${hl('n')}>${r.n}</td><td${hl('pp')}>${r.p + (r.f || 0)}</td><td${hl('bp')}>${r.bp ?? ''}</td><td${hl('bc')}>${r.bc ?? ''}</td><td${hl('diff')}>${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="pts">${r.pts}</td><td class="form">${formChips(tid)}</td></tr>`; }).join('')}</table></div><p class="muted small">Touchez un en-tête pour trier (BP = attaque, BC = défense). Pts = points officiels FFH (pénalités déduites). ▲▼ = évolution depuis la journée précédente. Forme : V victoire, N nul, D défaite (5 derniers matchs).</p>`;
       box.querySelectorAll('th[data-s]').forEach((h) => (h.onclick = () => { const def = COLS.find((c) => c[0] === h.dataset.s)[2]; stSort = h.dataset.s === stSort.k ? { k: stSort.k, dir: -stSort.dir } : { k: h.dataset.s, dir: def }; draw(); }));
     };
   if (d.standings.length) draw(); else box.innerHTML = '<div class="empty">Classement non disponible pour cette poule.</div>';
@@ -401,21 +406,26 @@ views.club = async (code) => {
 
 views.agenda = async () => {
   const teams = favs.teams.filter((id) => IDX.teams[id]);
-  const cal = store.get('cal', { prefix: {}, alarm: 60 });
+  const cal = store.get('cal', { prefix: {}, alarm: 60 }); cal.off ||= [];
+  const sel = () => teams.filter((id) => !cal.off.includes(id));
   if (!teams.length) { app.innerHTML = '<h1>Agenda</h1><div class="empty">Choisissez d’abord vos équipes favorites.<br><a class="btn primary" href="#/equipes">⭐ Choisir mes équipes</a></div>'; return; }
   const pre = (id) => { const p = (cal.prefix[id] || '').trim(); return p ? p + ' ' : ''; };
-  const url = () => `${location.origin}/api/cal.ics?${teams.map((id) => 't=' + encodeURIComponent(id + '|' + pre(id))).join('&')}&alarm=${cal.alarm}`;
+  const url = () => `${location.origin}/api/cal.ics?${sel().map((id) => 't=' + encodeURIComponent(id + '|' + pre(id))).join('&')}&alarm=${cal.alarm}`;
   app.innerHTML = `<h1>Mes matchs dans mon agenda</h1><p class="muted small" style="margin:-6px 0 10px">Abonnez-vous une fois : les matchs de vos équipes arrivent dans Google Agenda (ou Apple, Outlook…) et se mettent à jour tout seuls (horaire, lieu, score).</p>
-  <h2>Préfixe par équipe <span class="muted small" style="font-weight:400">(optionnel)</span></h2><div class="card list">${teams.map((id) => `<div class="row"><div class="grow"><b>${esc(IDX.teams[id].name)}</b><div class="muted small">${esc(teamSub(IDX.teams[id]))}</div><input class="search mini" data-p="${esc(id)}" placeholder="Ex. Clément –" value="${esc(cal.prefix[id] || '')}"></div></div>`).join('')}</div>
+  <h2>Quelles équipes ajouter ?</h2><div class="card list">${teams.map((id) => `<div class="row ckrow"><input type="checkbox" class="ck" data-c="${esc(id)}" ${cal.off.includes(id) ? '' : 'checked'} aria-label="Ajouter ${esc(IDX.teams[id].name)}"><div class="grow"><b>${esc(IDX.teams[id].name)}</b><div class="muted small">${esc(teamSub(IDX.teams[id]))}</div><input class="search mini" data-p="${esc(id)}" placeholder="Préfixe facultatif" value="${esc(cal.prefix[id] || '')}" ${cal.off.includes(id) ? 'disabled' : ''}></div></div>`).join('')}</div>
   <h2>Rappel</h2><select class="search" id="al">${[[0, 'Aucun rappel'], [30, '30 minutes avant'], [60, '1 heure avant'], [120, '2 heures avant'], [1440, 'La veille']].map(([v, l]) => `<option value="${v}" ${+cal.alarm === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
   <h2>S’abonner</h2><div class="card pad"><p style="margin:0 0 8px"><a class="btn primary" id="gc" target="_blank" rel="noopener">Ajouter à Google Agenda</a> <a class="btn" id="wc">Apple / Outlook</a> <button class="btn" id="cp">Copier le lien</button></p>
-  <div class="muted small">Exemple de titre : <b id="ex"></b></div><div class="muted small" style="margin-top:6px">Google Agenda actualise les agendas abonnés environ toutes les 12 à 24 h. Ce lien ne contient que la liste de vos équipes, aucune donnée personnelle.</div></div>`;
+  <div class="small" id="nosel" style="color:var(--warn);margin-bottom:6px" hidden>Cochez au moins une équipe.</div><div class="muted small">Exemple de titre : <b id="ex"></b></div><div class="muted small" style="margin-top:6px">Google Agenda actualise les agendas abonnés environ toutes les 12 à 24 h. Ce lien ne contient que la liste de vos équipes, aucune donnée personnelle.</div></div>`;
   const upd = () => {
+    const s = sel(), none = !s.length;
+    ['#gc', '#wc', '#cp'].forEach((q) => $(q).classList.toggle('off', none));
+    $('#nosel').hidden = !none;
     const u = url(); const w = u.replace(/^https?:/, 'webcal:');
-    $('#gc').href = 'https://calendar.google.com/calendar/u/0/r?cid=' + encodeURIComponent(w); $('#wc').href = w;
-    const t = IDX.teams[teams[0]]; $('#ex').textContent = `${pre(teams[0])}${t.name} vs …`;
+    $('#gc').href = none ? '#/agenda' : 'https://calendar.google.com/calendar/u/0/r?cid=' + encodeURIComponent(w); $('#wc').href = none ? '#/agenda' : w;
+    const t = IDX.teams[s[0] || teams[0]]; $('#ex').textContent = `${pre(s[0] || teams[0])}${t.name} vs …`;
     $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(u); toast('Lien copié : collez-le dans « Ajouter par URL »'); } catch { prompt('Copiez ce lien', u); } };
   };
+  app.querySelectorAll('[data-c]').forEach((c) => (c.onchange = () => { cal.off = c.checked ? cal.off.filter((x) => x !== c.dataset.c) : [...cal.off, c.dataset.c]; store.set('cal', cal); app.querySelector(`[data-p="${CSS.escape(c.dataset.c)}"]`).disabled = !c.checked; upd(); }));
   app.querySelectorAll('[data-p]').forEach((i) => (i.oninput = () => { cal.prefix[i.dataset.p] = i.value; store.set('cal', cal); upd(); }));
   $('#al').onchange = (e) => { cal.alarm = +e.target.value; store.set('cal', cal); upd(); };
   upd();
@@ -512,7 +522,9 @@ async function preMatch(m) {
 }
 const isStaff = (p) => !p.gk && !/^\d+$/.test(String(p.shirt || '').trim());
 views.match = async (id) => {
-  const m = D.matches.find((x) => x.id === id); if (!m) return notFound();
+  // match fictif pour s'entraîner à la saisie en direct : #/match/demo (non listé, toujours ouvert)
+  const demo = id === 'demo';
+  const m = demo ? { id: 'demo', comp: '', poule: null, round: 'Match de démonstration', date: `${todayKey()} ${pad(new Date().getHours())}:${pad(new Date().getMinutes())}:00`, t1: { id: 'demo:1', name: 'Équipe Rouge' }, t2: { id: 'demo:2', name: 'Équipe Bleue' }, status: 'upcoming', venue: 'Terrain d’entraînement (fictif)', city: null, sheet: false } : D.matches.find((x) => x.id === id); if (!m) return notFound();
   const c = IDX.comp[m.comp];
   const played = m.status === 'played';
   app.innerHTML = `<div class="card"><div class="sheet-h"><a class="muted small" href="#/comp/${m.comp}">${esc(c?.name || '')}${m.round ? ' · ' + esc(m.round) : ''}</a>
@@ -521,7 +533,7 @@ views.match = async (id) => {
   <div id="goals" class="small" style="margin-top:8px"></div><p style="margin:12px 0 0"><button class="btn" id="share">Partager</button> ${m.venue ? `<a class="btn" target="_blank" rel="noopener" href="https://www.openstreetmap.org/search?query=${encodeURIComponent(m.venue + ' ' + (m.city || ''))}">Itinéraire</a>` : ''}</p></div></div>
   <div id="live"></div><div id="pre"></div><div id="sheet">${m.sheet ? '<div class="loading">Chargement de la feuille de match…</div>' : '<div class="empty">Feuille de match pas encore disponible.</div>'}</div>`;
   $('#share').onclick = async () => { const data = { title: `${m.t1.name} – ${m.t2.name}`, text: played ? `${m.t1.name} ${m.s1}-${m.s2} ${m.t2.name}` : `${m.t1.name} – ${m.t2.name}`, url: location.href }; try { navigator.share ? await navigator.share(data) : (await navigator.clipboard.writeText(location.href), toast('Lien copié')); } catch {} };
-  if (m.status === 'upcoming' || m.status === 'stopped') { preMatch(m); startLive(m); }
+  if (m.status === 'upcoming' || m.status === 'stopped') { if (!demo) preMatch(m); startLive(m); if (demo) $('#live').insertAdjacentHTML('beforebegin', '<div class="card pad small" style="margin-bottom:10px">🧪 <b>Match fictif</b> pour essayer la saisie : tout ce que vous saisissez ici est visible de ceux qui ouvrent ce même lien. <button class="link" id="demo-reset">Remettre à zéro</button></div>'), $('#demo-reset').onclick = async () => { try { await liveApi('demo', { action: 'reset' }); toast('Démo remise à zéro'); views.match('demo'); } catch (e) { toast(e.message); } }; }
   if (!m.sheet) return;
   try {
     const s = await api('match/' + id);
