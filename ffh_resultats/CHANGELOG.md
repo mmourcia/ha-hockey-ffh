@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.13.2
+- Match de démonstration (#/match/demo) : reprend les équipes réelles de PHC Marcq – LMHC (15 nov.) pour tester la saisie avec un vrai effectif (résolution des buteurs, ex. « Yvan » → HANNOIR YVAN).
+
 ## 1.13.1
 - Agenda : adresse d'abonnement en `/cal/hockey-ffh.ics` (plus compatible avec Google Agenda), nom d'agenda personnalisable, description du calendrier ; explications sur le délai de première lecture par Google et l'ajout manuel « À partir de l'URL ».
 

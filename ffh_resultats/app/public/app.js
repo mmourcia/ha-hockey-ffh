@@ -541,7 +541,7 @@ function liveTimeline(m, v) {
   };
   return `<h2>Déroulé du match</h2><div class="card pad lv-card">${v.events.length ? `<div class="evs">${v.events.map(evRow).join('')}</div>` : '<div class="muted small">Rien de saisi pour l’instant.</div>'}
     <p class="muted small" style="margin:10px 0 0">Les temps sont ceux du chrono indicatif (hors arrêts de jeu). Saisi par des spectateurs présents au bord du terrain, sans vérification de la FFH. « Validé par N personnes » = le même fait a été saisi par plusieurs spectateurs indépendants. Le résultat officiel fait foi.</p>
-    ${m.id === 'demo' ? '<p class="small" style="margin:8px 0 0">🧪 <b>Match fictif</b> pour essayer la saisie, visible de tous. <button class="link" data-demo-reset>Remettre à zéro</button></p>' : ''}</div>`;
+    ${m.id === 'demo' ? '<p class="small" style="margin:8px 0 0">🧪 <b>Match de démonstration</b> : équipes réelles, score fictif, visible de tous. <button class="link" data-demo-reset>Remettre à zéro</button></p>' : ''}</div>`;
 }
 // « je saisis ce match » : valable pour l'onglet en cours seulement (se réinitialise à la fermeture)
 const sess = { get: (k) => { try { return sessionStorage.getItem(k) === '1'; } catch { return false; } }, set: (k, v) => { try { v ? sessionStorage.setItem(k, '1') : sessionStorage.removeItem(k); } catch {} } };
@@ -625,7 +625,9 @@ const isStaff = (p) => !p.gk && !/^\d+$/.test(String(p.shirt || '').trim());
 views.match = async (id) => {
   // match fictif pour s'entraîner à la saisie en direct : #/match/demo (non listé, toujours ouvert)
   const demo = id === 'demo';
-  const m = demo ? { id: 'demo', comp: '', poule: null, round: 'Match de démonstration', date: `${todayKey()} ${pad(new Date().getHours())}:${pad(new Date().getMinutes())}:00`, t1: { id: 'demo:1', name: 'Équipe Rouge' }, t2: { id: 'demo:2', name: 'Équipe Bleue' }, status: 'upcoming', venue: 'Terrain d’entraînement (fictif)', city: null, sheet: false } : D.matches.find((x) => x.id === id); if (!m) return notFound();
+  // le match de démonstration reprend les équipes réelles d'un match déjà joué (PHC Marcq – LMHC du 15 nov.) pour que l'effectif et la résolution des buteurs soient parlants
+  const ref = demo && D.matches.find((x) => x.id === '199489' && !x.bye);
+  const m = demo ? { id: 'demo', comp: ref?.comp || '', poule: null, round: ref ? 'Match de démonstration (équipes réelles)' : 'Match de démonstration', date: `${todayKey()} ${pad(new Date().getHours())}:${pad(new Date().getMinutes())}:00`, t1: ref ? ref.t1 : { id: 'demo:1', name: 'Équipe Rouge' }, t2: ref ? ref.t2 : { id: 'demo:2', name: 'Équipe Bleue' }, status: 'upcoming', venue: ref ? ref.venue : 'Terrain d’entraînement (fictif)', city: ref ? ref.city : null, sheet: false } : D.matches.find((x) => x.id === id); if (!m) return notFound();
   const c = IDX.comp[m.comp];
   const played = m.status === 'played';
   app.innerHTML = `<div class="card ${played ? '' : 'band'}"><div class="sheet-h"><a class="muted small" href="#/comp/${m.comp}">${esc(c?.name || '')}${m.round ? ' · ' + esc(m.round) : ''}</a>
