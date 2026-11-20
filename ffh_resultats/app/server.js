@@ -135,7 +135,7 @@ async function refresh(season, only = null) {
       const old = new Map(prev.matches.map((m) => [m.id, `${m.s1}-${m.s2}-${m.status}`]));
       const changed = next.matches.filter((m) => m.status === 'played' && old.has(m.id) && old.get(m.id) !== `${m.s1}-${m.s2}-${m.status}`);
       changedN = changed.length;
-      changed.forEach((m) => note(health.changes, { at: new Date().toISOString(), match: `${m.t1.name} ${m.s1} - ${m.s2} ${m.t2.name}`, comp: next.comps.find((c) => c.id === m.comp)?.name }, 12));
+      changed.forEach((m) => note(health.changes, { at: new Date().toISOString(), id: m.id, match: `${m.t1.name} ${m.s1} - ${m.s2} ${m.t2.name}`, comp: next.comps.find((c) => c.id === m.comp)?.name }, 12));
       if (changed.length) console.log(`push: ${changed.length} score(s), ${await push.notify(changed)} notification(s)`);
     }
     health.lastOk = new Date().toISOString();

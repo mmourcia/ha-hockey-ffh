@@ -106,7 +106,7 @@ async function load() {
     ${row('Site de la fédération', '<a class="link" href="https://www.ffhockey.org/" target="_blank" rel="noopener">ffhockey.org</a>')}
     ${row('Code source', '<a class="link" href="https://github.com/mmourcia/ha-hockey-ffh" target="_blank" rel="noopener">github.com/mmourcia/ha-hockey-ffh</a>')}
   </div>
-  <div class="card full"><h2>Derniers scores détectés</h2>${s.changes.length ? `<table>${s.changes.map((x) => `<tr><td style="width:150px">${dt(x.at)}</td><td><b>${esc(x.match)}</b></td><td class="muted">${esc(x.comp || '')}</td></tr>`).join('')}</table>` : '<div class="empty">Aucun nouveau score détecté depuis le démarrage (les nouveaux résultats apparaîtront ici et déclenchent les notifications).</div>'}</div>
+  <div class="card full"><h2>Derniers scores détectés</h2>${s.changes.length ? `<table>${s.changes.map((x) => `<tr><td style="width:150px">${dt(x.at)}</td><td><b>${x.id && s.publicUrl ? `<a class="link" href="${esc(s.publicUrl.replace(/\/$/, ''))}/#/match/${esc(x.id)}" target="_blank" rel="noopener">${esc(x.match)} ↗</a>` : esc(x.match)}</b></td><td class="muted">${esc(x.comp || '')}</td></tr>`).join('')}</table>` : '<div class="empty">Aucun nouveau score détecté depuis le démarrage (les nouveaux résultats apparaîtront ici et déclenchent les notifications).</div>'}</div>
   <div class="card full"><h2>Historique des synchronisations</h2>${hist}</div>
   ${s.errors.length ? `<div class="card full"><h2>Erreurs récentes</h2><table>${s.errors.map((x) => `<tr><td style="width:150px">${dt(x.at)}</td><td>${esc(x.msg)}</td></tr>`).join('')}</table></div>` : ''}`;
 }

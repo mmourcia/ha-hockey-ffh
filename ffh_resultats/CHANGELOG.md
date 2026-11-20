@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.18.4
+- Panneau HA : les « Derniers scores détectés » sont cliquables et ouvrent la page du match sur le site public (lien Tailscale).
+
 ## 1.18.3
 - Synchro : une relecture déclenchée par une visite replanifie désormais la prochaine synchro (l’horaire « prochaine synchro » du panneau était resté celui de l’ancien minuteur).
 
